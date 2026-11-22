@@ -128,6 +128,18 @@ function UserModal({ user, groups, onClose }: { user: User | "new"; groups: Grou
         <AttributeEditor rows={attrs} onChange={setAttrs} />
       </Field>
 
+      {!isNew && user.sign_in_methods.length > 0 && (
+        <Field label="Linked sign-in methods">
+          <ul className="space-y-1 text-sm">
+            {user.sign_in_methods.map((m) => (
+              <li key={m.provider_id} className="flex justify-between gap-4">
+                <span><Badge tone="blue">{m.provider_name}</Badge> <span className="text-slate-500">{m.email}</span></span>
+                <span className="text-slate-500">last used {formatDate(m.last_login_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </Field>
+      )}
       {!isNew && (
         <div className="space-y-2 border-t border-slate-200 pt-4">
           <p className="text-sm font-medium text-slate-700">Account actions</p>

@@ -55,6 +55,9 @@ class User(Base):
     groups: Mapped[list["Group"]] = relationship(
         secondary=user_groups, back_populates="members", order_by="Group.name"
     )
+    identities: Mapped[list["UserIdentity"]] = relationship(  # noqa: F821
+        cascade="all, delete-orphan", order_by="UserIdentity.id"
+    )
 
     def __init__(self, **kwargs):
         # Apply defaults in Python too, so new objects are usable before they are flushed

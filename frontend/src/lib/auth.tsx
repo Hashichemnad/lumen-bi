@@ -8,6 +8,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Signs out; for SSO sessions the browser is sent to the provider's logout page. */
   logout: (everywhere?: boolean) => Promise<void>;
   hasRole: (minimum: Role) => boolean;
 }
@@ -43,10 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       qc.setQueryData(["me"], me);
     },
     logout: async (everywhere = false) => {
-      await post(`/auth/logout${everywhere ? "?everywhere=true" : ""}`).catch(() => undefined);
+      const res = await post<{ logout_url: string | null }>(`/auth/logout${everywhere ? "?everywhere=true" : ""}`).catch(
+        () => null,
+      );
       // Keep the "me" query (its observer stays attached) but drop everything cached for this user
       qc.setQueryData(["me"], null);
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+      if (res?.logout_url) window.location.assign(res.logout_url);
     },
     hasRole: (minimum) => !!user && ROLE_LEVEL[user.role] >= ROLE_LEVEL[minimum],
   };

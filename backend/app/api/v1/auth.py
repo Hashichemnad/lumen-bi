@@ -15,9 +15,10 @@ from app.core.security import (
     verify_password,
 )
 from app.db import get_db
-from app.models import PasswordResetToken, User
-from app.schemas import ForgotPasswordIn, LoginIn, PasswordChangeIn, ResetPasswordIn, UserOut
+from app.models import IdentityProvider, PasswordResetToken, User
+from app.schemas import ForgotPasswordIn, LoginIn, LogoutOut, PasswordChangeIn, ResetPasswordIn, UserOut
 from app.services import audit
+from app.services.sso import SSOError, adapter_for
 from app.services.users import is_locked, send_reset_email, set_password, to_out
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -27,19 +28,20 @@ _DUMMY_HASH = hash_password("dummy-password-for-timing")
 BAD_LOGIN = "Incorrect email or password"
 
 
-def set_session_cookies(response: Response, user: User) -> None:
+def set_session_cookies(response: Response, user: User, idp: int | None = None) -> None:
+    """idp = id of the SSO provider used to sign in (None for password), so logout can end that session."""
     s = get_settings()
     common = {"httponly": True, "secure": s.cookie_secure, "samesite": "lax"}
     response.set_cookie(
         ACCESS_COOKIE,
-        create_access_token(user.id, user.token_version),
+        create_access_token(user.id, user.token_version, idp),
         max_age=s.access_token_minutes * 60,
         path="/api",
         **common,
     )
     response.set_cookie(
         REFRESH_COOKIE,
-        create_refresh_token(user.id, user.token_version),
+        create_refresh_token(user.id, user.token_version, idp),
         max_age=s.refresh_token_days * 86400,
         path="/api/v1/auth",
         **common,
@@ -91,20 +93,31 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     if not user or not user.is_active or payload.get("ver") != user.token_version:
         clear_session_cookies(response)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
-    set_session_cookies(response, user)
+    set_session_cookies(response, user, payload.get("idp"))
     return to_out(user)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", response_model=LogoutOut)
 def logout(request: Request, response: Response, everywhere: bool = False, db: Session = Depends(get_db)):
+    """Ends the session. If the user signed in with SSO, returns the provider's logout URL to visit next."""
     token = request.cookies.get(REFRESH_COOKIE)
     payload = decode_token(token, "refresh") if token else None
     user = db.get(User, int(payload["sub"])) if payload else None
+    logout_url = None
     if user:
         if everywhere:
             user.token_version += 1
         audit.record(db, "auth.logout", user=user, request=request, details={"everywhere": everywhere})
+        provider = db.get(IdentityProvider, payload["idp"]) if payload.get("idp") else None
+        if provider and provider.enabled:
+            try:
+                logout_url = adapter_for(provider).logout_url(
+                    f"{get_settings().public_url.rstrip('/')}/login"
+                )
+            except SSOError:
+                logout_url = None
     clear_session_cookies(response)
+    return LogoutOut(logout_url=logout_url)
 
 
 @router.get("/me", response_model=UserOut)

@@ -7,6 +7,7 @@ import type { Role } from "./lib/types";
 import Account from "./pages/Account";
 import Audit from "./pages/admin/Audit";
 import Groups from "./pages/admin/Groups";
+import SignInMethods from "./pages/admin/SignInMethods";
 import Users from "./pages/admin/Users";
 import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="account" element={<Account />} />
         <Route path="admin/users" element={<RequireAuth role="admin"><Users /></RequireAuth>} />
         <Route path="admin/groups" element={<RequireAuth role="admin"><Groups /></RequireAuth>} />
+        <Route path="admin/sign-in" element={<RequireAuth role="admin"><SignInMethods /></RequireAuth>} />
         <Route path="admin/audit" element={<RequireAuth role="admin"><Audit /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
