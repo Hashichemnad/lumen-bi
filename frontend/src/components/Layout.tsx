@@ -1,0 +1,97 @@
+import clsx from "clsx";
+import { BarChart3, Database, History, Home, LayoutDashboard, LogOut, UserCog, Users, UsersRound } from "lucide-react";
+import type { ReactNode } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+import { useAuth } from "../lib/auth";
+import type { Role } from "../lib/types";
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: ReactNode;
+  role?: Role;
+  soon?: boolean;
+}
+
+const MAIN: NavItem[] = [
+  { to: "/", label: "Home", icon: <Home size={18} /> },
+  { to: "/dashboards", label: "Dashboards", icon: <LayoutDashboard size={18} />, soon: true },
+  { to: "/data", label: "Data", icon: <Database size={18} />, role: "creator", soon: true },
+];
+const ADMIN: NavItem[] = [
+  { to: "/admin/users", label: "Users", icon: <Users size={18} />, role: "admin" },
+  { to: "/admin/groups", label: "Groups", icon: <UsersRound size={18} />, role: "admin" },
+  { to: "/admin/audit", label: "Audit log", icon: <History size={18} />, role: "admin" },
+];
+
+function NavGroup({ title, items }: { title?: string; items: NavItem[] }) {
+  const { hasRole } = useAuth();
+  const visible = items.filter((i) => !i.role || hasRole(i.role));
+  if (!visible.length) return null;
+  return (
+    <div className="space-y-1">
+      {title && <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</p>}
+      {visible.map((item) =>
+        item.soon ? (
+          <span key={item.to} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400"
+            title="Coming in a later milestone">
+            {item.icon}
+            {item.label}
+            <span className="ml-auto text-[10px] uppercase">soon</span>
+          </span>
+        ) : (
+          <NavLink key={item.to} to={item.to} end={item.to === "/"}
+            className={({ isActive }) =>
+              clsx("flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium",
+                isActive ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100")}>
+            {item.icon}
+            {item.label}
+          </NavLink>
+        ),
+      )}
+    </div>
+  );
+}
+
+export default function Layout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  return (
+    <div className="flex h-full">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
+        <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-4">
+          <BarChart3 className="text-brand-600" size={22} />
+          <span className="font-semibold tracking-tight">Lumen BI</span>
+        </div>
+        <nav className="flex-1 overflow-y-auto p-3">
+          <NavGroup items={MAIN} />
+          <NavGroup title="Administration" items={ADMIN} />
+        </nav>
+        <div className="border-t border-slate-200 p-3">
+          <NavLink to="/account" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-100">
+            <UserCog size={18} className="text-slate-500" />
+            <span className="min-w-0">
+              <span className="block truncate font-medium">{user?.name || user?.email}</span>
+              <span className="block truncate text-xs capitalize text-slate-500">{user?.role}</span>
+            </span>
+          </NavLink>
+          <button
+            onClick={async () => {
+              await logout();
+              navigate("/login");
+            }}
+            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
+          >
+            <LogOut size={18} /> Sign out
+          </button>
+        </div>
+      </aside>
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-6xl p-6 lg:p-8">
+          <Outlet />
+        </div>
+      </main>
+    </div>
+  );
+}
