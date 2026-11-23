@@ -18,6 +18,12 @@ dependencies = [
     "python-multipart>=0.0.12",
     "httpx>=0.27",
     "cryptography>=43",
+    "duckdb>=1.1",
+    "pytz>=2024.1",  # DuckDB needs it to return time-zone-aware timestamps
+    "pyarrow>=17",
+    "oracledb>=2.4",
+    "openpyxl>=3.1",
+    "croniter>=3.0",
 ]
 
 [project.optional-dependencies]

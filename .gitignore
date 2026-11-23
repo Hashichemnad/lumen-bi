@@ -18,8 +18,9 @@ node_modules/
 dist/
 .vite/
 
-# Data (never commit business data)
-data/
+# Data (never commit business data). Anchored so source folders named "data" are not ignored.
+/data/
+/backend/data/
 *.duckdb
 *.duckdb.wal
 *.parquet

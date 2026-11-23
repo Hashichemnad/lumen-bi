@@ -183,3 +183,104 @@ class AuditOut(ORM):
     object_id: str
     ip: str
     details: dict[str, Any]
+
+
+# ---------- data: connections, datasets, sync runs ----------
+class ConnectionTypeOut(BaseModel):
+    type: str
+    label: str
+    supports_incremental: bool
+    supports_sql: bool
+    secret_fields: list[str]
+
+
+class ConnectionIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    type: str
+    config: dict[str, Any] = {}
+    secrets: dict[str, str] | None = None  # None = keep stored secrets
+
+
+class ConnectionTestIn(ConnectionIn):
+    connection_id: int | None = None  # reuse stored secrets of an existing connection when testing edits
+
+
+class ConnectionOut(ORM):
+    id: int
+    name: str
+    type: str
+    config: dict[str, Any]
+    secrets_set: list[str] = []
+    owner_id: int | None
+    owner_name: str = ""
+    dataset_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class ObjectOut(BaseModel):
+    name: str
+    kind: str
+    schema_: str | None = Field(default=None, alias="schema")
+
+
+class ColumnOut(BaseModel):
+    name: str
+    type: str
+
+
+class DatasetIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = ""
+    connection_id: int
+    source: dict[str, str]
+    sync_mode: Literal["full", "incremental"] = "full"
+    incremental_column: str | None = None
+    primary_key: list[str] = []
+    schedule: str | None = None  # 5-field cron, interpreted in the server's time zone
+
+
+class DatasetOut(ORM):
+    id: int
+    name: str
+    description: str
+    connection_id: int
+    connection_name: str = ""
+    connection_type: str = ""
+    source: dict[str, Any]
+    sync_mode: str
+    incremental_column: str | None
+    primary_key: list[str]
+    schedule: str | None
+    next_run_at: datetime | None
+    current_version: int
+    row_count: int
+    columns: list[ColumnOut]
+    last_synced_at: datetime | None
+    last_status: str
+    owner_id: int | None
+    owner_name: str = ""
+    active_run: "SyncRunOut | None" = None
+    updated_at: datetime
+
+
+class SyncRunOut(ORM):
+    id: int
+    dataset_id: int
+    trigger: str
+    status: str
+    mode: str
+    version: int | None
+    rows_read: int
+    rows_total: int
+    error: str | None
+    details: dict[str, Any]
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class PreviewOut(BaseModel):
+    columns: list[str]
+    rows: list[list[Any]]
+    version: int

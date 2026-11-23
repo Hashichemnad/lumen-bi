@@ -1,0 +1,198 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import clsx from "clsx";
+import { ArrowLeft, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+
+import { Alert, Badge, Button, Card, PageHeader, Table, formatDate } from "../../components/ui";
+import { del, get, post } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import type { Connection, Dataset, Preview, SyncRun } from "../../lib/types";
+import { RunBadge, StatusBadge, describeSchedule, formatNumber, sourceLabel } from "./common";
+import DatasetForm from "./DatasetForm";
+
+function cell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return String(value);
+}
+
+function duration(run: SyncRun): string {
+  if (!run.started_at || !run.finished_at) return "";
+  const s = (new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000;
+  return s < 60 ? `${s.toFixed(1)} s` : `${Math.round(s / 60)} min`;
+}
+
+export default function DatasetPage() {
+  const id = Number(useParams().id);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { user, hasRole } = useAuth();
+  const [tab, setTab] = useState<"preview" | "columns" | "history">("preview");
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+
+  const ds = useQuery({
+    queryKey: ["dataset", id],
+    queryFn: () => get<Dataset>(`/datasets/${id}`),
+    refetchInterval: (q) => (q.state.data?.active_run ? 2000 : false),
+  });
+  const version = ds.data?.current_version ?? 0;
+  const preview = useQuery({
+    queryKey: ["preview", id, version],
+    queryFn: () => get<Preview>(`/datasets/${id}/preview?limit=100`),
+    enabled: version > 0,
+  });
+  const runs = useQuery({
+    queryKey: ["runs", id, ds.data?.active_run?.status, version],
+    queryFn: () => get<SyncRun[]>(`/datasets/${id}/runs`),
+  });
+  const conn = useQuery({
+    queryKey: ["connection", ds.data?.connection_id],
+    queryFn: () => get<Connection>(`/connections/${ds.data!.connection_id}`),
+    enabled: !!ds.data,
+  });
+
+  if (!ds.data) return ds.error ? <Alert>{(ds.error as Error).message}</Alert> : null;
+  const d = ds.data;
+  const canEdit = hasRole("admin") || d.owner_id === user?.id;
+  const lastRun = runs.data?.[0];
+
+  const syncNow = async () => {
+    setError("");
+    try {
+      await post(`/datasets/${d.id}/sync`);
+      await qc.invalidateQueries({ queryKey: ["dataset", id] });
+      await qc.invalidateQueries({ queryKey: ["runs", id] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start the sync");
+    }
+  };
+  const remove = async () => {
+    if (!confirm(`Delete dataset "${d.name}" and its data copy?`)) return;
+    await del(`/datasets/${d.id}`);
+    await qc.invalidateQueries({ queryKey: ["datasets"] });
+    navigate("/data");
+  };
+
+  return (
+    <>
+      <Link to="/data" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ArrowLeft size={14} /> Data</Link>
+      <PageHeader title={d.name} description={d.description || undefined}
+        actions={<>
+          <Button onClick={syncNow} disabled={!!d.active_run}>
+            <RefreshCw size={16} className={d.active_run ? "animate-spin" : ""} /> {d.active_run ? "Syncing…" : "Sync now"}
+          </Button>
+          {canEdit && <Button variant="secondary" onClick={() => setEditing(true)} disabled={!conn.data}>Settings</Button>}
+          {canEdit && <Button variant="danger" onClick={remove}>Delete</Button>}
+        </>} />
+      {error && <div className="mb-4"><Alert>{error}</Alert></div>}
+      {d.last_status === "failed" && lastRun?.status === "failed" && !d.active_run && (
+        <div className="mb-4"><Alert>The last sync failed: {lastRun.error}{d.current_version ? " The previous data is still in use." : ""}</Alert></div>
+      )}
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-4">
+        {[
+          ["Status", <StatusBadge key="s" dataset={d} />],
+          ["Rows", d.current_version ? formatNumber(d.row_count) : "—"],
+          ["Last synced", formatDate(d.last_synced_at)],
+          ["Refresh", <span key="r">{describeSchedule(d.schedule)}{d.next_run_at && <span className="block text-xs text-slate-500">next {formatDate(d.next_run_at)}</span>}</span>],
+        ].map(([label, value]) => (
+          <Card key={String(label)} className="p-4">
+            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+            <div className="mt-1 text-sm font-medium">{value}</div>
+          </Card>
+        ))}
+      </div>
+      <p className="mb-4 text-sm text-slate-600">
+        From <Link className="text-brand-600 hover:underline" to={`/data/connections/${d.connection_id}`}>{d.connection_name}</Link>
+        {" · "}{sourceLabel(d)}{" · "}{d.sync_mode === "incremental" ? `incremental by ${d.incremental_column}${d.primary_key.length ? `, key ${d.primary_key.join(" + ")}` : ""}` : "full refresh"}
+      </p>
+      {d.source.sql && <pre className="mb-4 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{d.source.sql}</pre>}
+
+      <div className="mb-3 flex gap-1 border-b border-slate-200">
+        {(["preview", "columns", "history"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={clsx("-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize",
+              tab === t ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
+            {t === "history" ? "Sync history" : t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "preview" && (
+        <Card>
+          {!d.current_version ? (
+            <p className="p-6 text-center text-sm text-slate-500">{d.active_run ? "Syncing… the preview appears when it finishes." : "No data yet. Run a sync."}</p>
+          ) : (
+            <>
+              <div className="max-h-[480px] overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="sticky top-0 bg-slate-50">
+                    <tr>{preview.data?.columns.map((c) => <th key={c} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-600">{c}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {preview.data?.rows.map((r, i) => (
+                      <tr key={i}>{r.map((v, j) => <td key={j} className="whitespace-nowrap px-3 py-1.5 tabular-nums">{cell(v)}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
+                First {preview.data?.rows.length ?? 0} of {formatNumber(d.row_count)} rows · version {version}
+              </p>
+            </>
+          )}
+        </Card>
+      )}
+
+      {tab === "columns" && (
+        <Card>
+          <Table head={["Column", "Type"]}>
+            {d.columns.map((c) => (
+              <tr key={c.name}>
+                <td className="px-4 py-2 font-medium">{c.name}</td>
+                <td className="px-4 py-2 text-slate-600">{c.type}</td>
+              </tr>
+            ))}
+          </Table>
+          <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
+            Labels, formats and calculated fields come with the data-modelling milestone.
+          </p>
+        </Card>
+      )}
+
+      {tab === "history" && (
+        <Card>
+          <Table head={["Started", "Trigger", "Mode", "Status", "Rows", "Time", "Details"]}>
+            {runs.data?.map((r) => (
+              <tr key={r.id}>
+                <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{formatDate(r.started_at ?? r.created_at)}</td>
+                <td className="px-4 py-2.5 capitalize">{r.trigger}</td>
+                <td className="px-4 py-2.5">{r.mode}</td>
+                <td className="px-4 py-2.5"><RunBadge run={r} /></td>
+                <td className="px-4 py-2.5 tabular-nums">
+                  {r.status === "success" ? <>{formatNumber(r.rows_total)}{r.mode === "incremental" && <span className="text-xs text-slate-500"> (+{formatNumber(r.rows_read)} read)</span>}</> : "—"}
+                </td>
+                <td className="px-4 py-2.5 text-slate-500">{duration(r)}</td>
+                <td className="px-4 py-2.5 text-xs">
+                  {r.error && <span className="text-red-700">{r.error}</span>}
+                  {r.details.note && <span className="text-slate-500">{r.details.note}</span>}
+                  {r.details.schema_changes && (
+                    <span className="flex flex-wrap gap-1">
+                      {r.details.schema_changes.added?.map((c) => <Badge key={c} tone="green">+ {c}</Badge>)}
+                      {r.details.schema_changes.removed?.map((c) => <Badge key={c} tone="red">− {c}</Badge>)}
+                      {r.details.schema_changes.retyped?.map((c) => <Badge key={c.name} tone="amber">{c.name}: {c.from} → {c.to}</Badge>)}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      )}
+
+      {editing && conn.data && <DatasetForm connection={conn.data} existing={d} onClose={() => setEditing(false)} />}
+    </>
+  );
+}

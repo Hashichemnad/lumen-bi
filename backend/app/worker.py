@@ -1,4 +1,4 @@
-"""Celery app for background jobs (data syncs, reports, alerts). Tasks are added in later milestones."""
+"""Celery app for background jobs (data syncs now; reports and alerts later)."""
 
 from celery import Celery
 
@@ -15,6 +15,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     result_expires=86400,
+    beat_schedule={
+        # Each dataset has its own cron schedule; this checks every minute which ones are due
+        "dispatch-due-syncs": {"task": "lumen.dispatch_due_syncs", "schedule": 60.0},
+    },
 )
 app = celery_app  # `celery -A app.worker` looks for `app`
 
@@ -22,3 +26,17 @@ app = celery_app  # `celery -A app.worker` looks for `app`
 @celery_app.task(name="lumen.ping")
 def ping() -> str:
     return "pong"
+
+
+@celery_app.task(name="lumen.sync_dataset")
+def sync_dataset(run_id: int) -> None:
+    from app.services.sync import execute
+
+    execute(run_id)
+
+
+@celery_app.task(name="lumen.dispatch_due_syncs")
+def dispatch_due_syncs() -> int:
+    from app.services.sync import dispatch_due
+
+    return dispatch_due()
