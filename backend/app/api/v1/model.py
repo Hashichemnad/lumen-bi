@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_role
+from app.api.deps import current_user, require_role
 from app.db import get_db
-from app.models import Dataset, DatasetField, Hierarchy, Parameter, Role, User
+from app.models import Dataset, DatasetField, Hierarchy, Parameter, RlsRule, Role, User
+from app.query import duck, engine, rls
 from app.schemas import (
     FieldCreate,
     FieldOrderIn,
@@ -102,19 +103,19 @@ def _compile_candidate(
     return model.compile_field(ctx, name)
 
 
-def _sample(ds: Dataset, compiled: Compiled) -> list:
-    path = snapshots.snapshot_path(ds.id, ds.current_version)
-    if not path:
+def _sample(db: Session, ds: Dataset, compiled: Compiled, user: User) -> list:
+    """First values of a formula, from the rows this user may see."""
+    if not snapshots.snapshot_path(ds.id, ds.current_version):
         return []
-    con = duckdb.connect()
     try:
-        src = "read_parquet('" + str(path).replace("'", "''") + "')"
-        limit = "" if compiled.level == "agg" else " LIMIT 10"
-        rows = con.execute(f"SELECT {compiled.sql} FROM {src}{limit}").fetchall()
+        with_base, params, _, _ = engine.base_sql(db, ds, rls.principal_for(db, user))
+    except engine.QueryError as exc:
+        raise FormulaError(exc.message) from exc
+    limit = "" if compiled.level == "agg" else " LIMIT 10"
+    try:
+        _, rows = duck.run(f"{with_base} SELECT {compiled.sql} FROM base{limit}", params)
     except duckdb.Error as exc:
         raise FormulaError(f"The formula could not run on the data: {str(exc).splitlines()[0]}") from exc
-    finally:
-        con.close()
     return [model.jsonable(r[0]) for r in rows]
 
 
@@ -144,44 +145,39 @@ def list_fields(dataset_id: int, db: Session = Depends(get_db), _: User = Depend
 def field_values(
     dataset_id: int,
     field: str,
+    search: str = Query("", max_length=200),
+    order: str = Query("frequency", pattern="^(frequency|value)$"),
     limit: int = Query(200, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _: User = Depends(require_creator),
+    user: User = Depends(current_user),
 ):
-    """Distinct values of a field (most frequent first), e.g. to build groups."""
+    """Distinct values of a field that the user may see (filter lists, group editor)."""
     ds = _dataset(db, dataset_id)
-    path = snapshots.snapshot_path(ds.id, ds.current_version)
-    if not path:
-        return {"values": [], "truncated": False}
+    if not rls.can_query(db, user, ds):
+        raise HTTPException(404, "Dataset not found")
+    if not snapshots.snapshot_path(ds.id, ds.current_version):
+        return {"values": [], "counts": [], "truncated": False, "restricted": False}
     try:
-        compiled = model.compile_field(model.build_context(db, ds.id), field)
-    except FormulaError as exc:
+        return engine.field_values(
+            db, ds.id, rls.principal_for(db, user), field, search=search, limit=limit, order=order
+        )
+    except engine.QueryError as exc:
         raise HTTPException(422, exc.message) from exc
-    if compiled.level == "agg":
-        raise HTTPException(422, "Aggregated fields have no list of values")
-    con = duckdb.connect()
-    try:
-        src = "read_parquet('" + str(path).replace("'", "''") + "')"
-        rows = con.execute(
-            f"SELECT v, count(*) AS n FROM (SELECT {compiled.sql} AS v FROM {src}) "
-            f"GROUP BY v ORDER BY n DESC, v LIMIT {int(limit) + 1}"
-        ).fetchall()
-    finally:
-        con.close()
-    values = [model.jsonable(r[0]) for r in rows[:limit]]
-    return {"values": values, "truncated": len(rows) > limit}
 
 
 @router.post("/datasets/{dataset_id}/formula/check", response_model=FormulaCheckOut)
 def check_formula(
-    dataset_id: int, body: FormulaCheckIn, db: Session = Depends(get_db), _: User = Depends(require_creator)
+    dataset_id: int,
+    body: FormulaCheckIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_creator),
 ):
     ds = _dataset(db, dataset_id)
     fields = model.fields_of(db, dataset_id)
     name = (body.field_name or "__formula_check__").strip()
     try:
         compiled = _compile_candidate(db, ds, name, body.kind, body.formula, body.config, fields)
-        sample = _sample(ds, compiled)
+        sample = _sample(db, ds, compiled, user)
     except FormulaError as exc:
         return FormulaCheckOut(ok=False, error=exc.message, pos=exc.pos)
     return FormulaCheckOut(ok=True, type=compiled.type, is_aggregate=compiled.level == "agg", sample=sample)
@@ -326,6 +322,9 @@ def _rename_references(db: Session, dataset_id: int, fields: list[DatasetField],
             other.config = {**other.config, "source": new}
     for h in db.scalars(select(Hierarchy).where(Hierarchy.dataset_id == dataset_id)):
         h.levels = [new if lv == old else lv for lv in h.levels]
+    for rule in db.scalars(select(RlsRule).where(RlsRule.dataset_id == dataset_id)):
+        if str((rule.config or {}).get("field", "")).lower() == old.lower():
+            rule.config = {**rule.config, "field": new}
 
 
 @router.delete("/datasets/{dataset_id}/fields/{field_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -343,6 +342,11 @@ def delete_field(
     fields = model.fields_of(db, dataset_id)
     used = model.dependents(fields, f.name) + [
         f"hierarchy {h}" for h in model.hierarchies_using(db, ds.id, f.name)
+    ]
+    used += [
+        f"row-level security rule {r.name or rls.describe(r)}"
+        for r in db.scalars(select(RlsRule).where(RlsRule.dataset_id == ds.id))
+        if str((r.config or {}).get("field", "")).lower() == f.name.lower()
     ]
     if used:
         raise HTTPException(409, f"[{f.name}] is used by {', '.join(used)}. Change those first.")

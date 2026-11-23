@@ -293,6 +293,7 @@ class PreviewOut(BaseModel):
     columns: list[str]
     rows: list[list[Any]]
     version: int
+    restricted: bool = False  # row-level security hid some rows from this user
 
 
 # ---------- semantic layer ----------
@@ -385,3 +386,68 @@ class ParameterOut(BaseModel):
     data_type: str
     default_value: Any
     allowed_values: list[Any]
+
+
+# ---------- query engine and row-level security ----------
+class RlsRuleIn(BaseModel):
+    name: str = Field("", max_length=200)
+    kind: Literal["attribute", "entitlement"] = "attribute"
+    config: dict[str, Any]
+    exempt_groups: list[int] = []
+    enabled: bool = True
+    description: str = ""
+
+
+class RlsRuleOut(ORM):
+    id: int
+    dataset_id: int
+    name: str
+    kind: str
+    config: dict[str, Any]
+    exempt_groups: list[int]
+    enabled: bool
+    description: str
+    summary: str = ""
+    exempt_group_names: list[str] = []
+
+
+class InheritedRuleOut(BaseModel):
+    rule: RlsRuleOut
+    dataset: DatasetRef
+    mapped: bool  # False: the rule's field is not in this dataset, so it blocks every row
+
+
+class AccessIn(BaseModel):
+    everyone: bool = False
+    user_ids: list[int] = []
+    group_ids: list[int] = []
+
+
+class AccessOut(AccessIn):
+    users: list[dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
+
+
+class SecurityOut(BaseModel):
+    rules: list[RlsRuleOut]
+    inherited: list[InheritedRuleOut]
+    access: AccessOut
+    attributes: list[str]  # attribute names in use by users, for the rule editor
+
+
+class SecurityCheckOut(BaseModel):
+    user: dict[str, Any]
+    has_access: bool
+    bypass: bool
+    rules: list[dict[str, Any]]
+    visible_rows: int | None
+    total_rows: int
+
+
+class CatalogDatasetOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    row_count: int
+    last_synced_at: datetime | None
+    restricted: bool

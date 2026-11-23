@@ -10,8 +10,8 @@
 | 4 | Connector framework + files + Oracle (+ PostgreSQL) | Done (Oracle still to be tried against a real database) |
 | 5 | Salesforce and REST connectors | Done (to be tried against a real Salesforce org) |
 | 6 | Semantic layer | Done |
-| 7 | Query engine + row-level security | Next |
-| 8 | Chart builder UI | — |
+| 7 | Query engine + row-level security | Done |
+| 8 | Chart builder UI | Next |
 | 9 | Dashboards UI | — |
 | 10 | Exports, subscriptions, alerts, embedding | — |
 | 11 | AI features | — |
@@ -148,17 +148,55 @@ Known limits (by design for now):
   Browser test: model edits, formula error and fix, aggregate field, group, parameter, hierarchy, preview of
   calculated columns, join builder → joined dataset.
 
-## Next: milestone 7 (query engine + row-level security)
+## What exists (milestone 7)
 
-- Query spec (dimensions with date grain, measures with aggregation or aggregate fields, filters, sort,
-  limit, parameters) compiled with `semantic.model.build_context` into one parameterised DuckDB query.
-- Table calculations: running total, % of total, difference / % change from previous, rank, moving average.
-- Row-level security rules per dataset (column ↔ user attribute, entitlement dataset, groups), applied in
-  the engine before anything else; fail closed; admins bypass; "preview as user".
-- Result cache in Redis keyed by dataset version + query + security context.
-- `POST /query`, `POST /query/export`, `GET /fields/{id}/values` for filters; preview for non-creators then
-  goes through the engine.
-- Oracle live mode (optional) through the same compiler.
+- Query engine `app/query/`: `spec.py` (the query spec, Pydantic), `engine.py` (compiler and runner),
+  `rls.py` (row-level security), `cache.py` (Redis or in-process result cache), `duck.py` (one shared
+  DuckDB instance per process, a cursor per query, timeout by interrupt, TimeZone per query).
+  - Dimensions with date grain/part, measures with aggregations (incl. median, percentile, stdev) or
+    aggregate calculated fields, `*` row count; filters (comparison, in/not in with nulls, range, text,
+    null, relative dates, top/bottom N ranked after other filters, aggregate filters as HAVING); sort,
+    limit with `truncated`, grand totals, parameters; rows mode.
+  - Table calculations over the aggregated result: running total, % of total, difference, % change, rank,
+    moving average, with `along` / `partition_by`.
+  - SQL shape: `base` CTE (the only read of the snapshot, carrying RLS) → `q` (group by) → `calc` (window
+    functions) → order/limit. User values are `$n` bound parameters.
+  - Cache key = sha256(SQL + bound values + snapshot file identity): security context and data version
+    are part of the key by construction. `CACHE_BACKEND=redis|memory|off`, `CACHE_SECONDS`.
+  - 10M rows on a 2-vCPU sandbox, uncached: 45–390 ms per chart query (target < 500 ms on 8 vCPU).
+- RLS models `rls_rules` (attribute | entitlement; exempt groups; enabled) and `dataset_shares`
+  (everyone | user | group). Migration `0005`. Fail closed in every unclear case; admins bypass; Creators
+  are filtered too; derived datasets inherit parents' rules through column mappings (transitively).
+  Built-in attributes email/user_id/name/groups cannot be overridden by custom attributes. Deleted users
+  and groups are removed from shares and exemptions. Fields used by rules cannot be deleted; renames
+  update rules; access tables in use cannot be deleted.
+- API `app/api/v1/query.py`: `POST /query`, `POST /query/export` (CSV, Explorer+, formula-injection safe,
+  audited), `GET /catalog/datasets[/{id}]` (formulas hidden from non-creators), security
+  (`GET /datasets/{id}/security`, rules CRUD, `PUT /access`, `GET /security/check?user_id=`), `as_user_id`
+  preview for owners/admins (audited), `GET /directory` (people and groups for Creators). The existing
+  preview, value list and formula sample endpoints now go through RLS; value lists are open to anyone
+  with access to the dataset.
+- Frontend: dataset **Security** tab (who can use it; rules list incl. inherited ones; rule editor for
+  attribute and access-table rules with exempt groups; check what someone sees with rule status, values,
+  row count and their rows); preview shows when RLS applies.
+- Docs: `docs/SECURITY.md`, `docs/QUERY_API.md`.
+- Tests: 287 backend tests; `test_query.py` (44: every filter op, table calcs, totals, sort/limit, cache
+  refresh on sync, export, catalog) and `test_rls.py` (39: every read path, fail-closed cases, joins and
+  unions, cache isolation, permissions, injection attempts). Browser test: access, rule with exempt group,
+  check as three users, queries as five users with different access, restricted preview for a creator.
+- Not done (optional in the spec): Oracle live mode. Snapshots + DuckDB meet the performance targets, so
+  live mode is left for later if a real need appears.
+
+## Next: milestone 8 (chart builder)
+
+- Chart page: pick a dataset from the catalog, field list (dimensions/measures, hierarchies, parameters),
+  shelves (Columns, Rows, Color, Size, Label, Tooltip, Detail, Filters) that build a query spec.
+- Show Me: bar, line, area, combo, pie/donut, scatter, table / pivot with totals, KPI card, heat map,
+  treemap, map (UAE emirates/GCC/world); quick table calcs; top N; reference and trend lines; conditional
+  formatting; formats from the model.
+- Filter cards (values from `/values`, ranges, relative dates), parameter controls, drill through
+  hierarchies, view underlying rows (rows mode), export CSV.
+- Saved charts (`charts` table: owner, dataset, spec, visual settings), Arabic/RTL-ready layout.
 
 ## Open questions for the owner
 

@@ -10,6 +10,7 @@ os.environ["DATA_DIR"] = str(_tmp)
 os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests-only-0123456789"
 os.environ["SMTP_HOST"] = ""
 os.environ["JOBS_MODE"] = "eager"  # syncs run inside the request, so tests can check results directly
+os.environ["CACHE_BACKEND"] = "memory"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -18,6 +19,7 @@ from app.core.security import hash_password  # noqa: E402
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Role, User  # noqa: E402
+from app.query import cache  # noqa: E402
 
 PASSWORD = "Password123"
 
@@ -28,6 +30,7 @@ def fresh_db():
     Base.metadata.create_all(engine)
     shutil.rmtree(_tmp / "datasets", ignore_errors=True)  # ids restart with the fresh database
     shutil.rmtree(_tmp / "uploads", ignore_errors=True)
+    cache.clear()
     yield
 
 

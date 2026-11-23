@@ -3,9 +3,10 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–6 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> Status: milestones 1–7 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
 > roles, groups, audit log; data connections: files, Oracle, PostgreSQL, Salesforce, REST APIs with
-> scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins).
+> scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins; query
+> engine with table calculations, caching and row-level security).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)
@@ -87,6 +88,13 @@ then create datasets from its tables, objects or endpoints, or from a query. Set
 
 Dataset → Model: labels, formats, calculated fields (Tableau-style formulas), groups, bins, hierarchies,
 parameters; Data → Join or combine datasets. Guide and formula reference: [docs/MODELLING.md](docs/MODELLING.md).
+
+## Data security
+
+Dataset → Security: who can use it, row-level security rules (user attributes or an access table synced
+from another system), and "check what someone sees". Admins see everything; everyone else only their rows,
+everywhere. Details: [docs/SECURITY.md](docs/SECURITY.md). Query format for developers:
+[docs/QUERY_API.md](docs/QUERY_API.md).
 
 ## Single sign-on (Microsoft, UAE PASS)
 
