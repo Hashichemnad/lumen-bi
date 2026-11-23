@@ -156,7 +156,7 @@ function categoryAxis(data: string[]): Obj {
   return {
     type: "category",
     data,
-    axisLabel: { color: INK.muted, fontFamily: FONT, hideOverlap: true, interval: data.length <= 40 ? 0 : "auto", overflow: "truncate", width: 120 },
+    axisLabel: { color: INK.muted, fontFamily: FONT, hideOverlap: true, interval: data.length <= 40 ? 0 : "auto", overflow: "break", width: data.length > 8 ? 70 : 100, lineHeight: 14 },
     axisLine: { lineStyle: { color: INK.axis } },
     axisTick: { show: false },
   };

@@ -5,7 +5,7 @@ POST /query/export           the same as CSV
 GET  /catalog/datasets       datasets the user may query
 GET  /catalog/datasets/{id}  their fields, hierarchies and parameters
 GET  /datasets/{id}/security, rules CRUD, PUT access, GET security/check (preview as a user)
-GET  /directory              people and groups, for sharing and rule editors (Creators)
+GET  /directory              people and groups, for sharing and rule editors (Explorers and up)
 """
 
 import csv
@@ -504,8 +504,8 @@ def check_as(
 
 
 @router.get("/directory")
-def directory(db: Session = Depends(get_db), _: User = Depends(require_creator)):
-    """People and groups, to share with or to preview as."""
+def directory(db: Session = Depends(get_db), _: User = Depends(require_role(Role.explorer))):
+    """People and groups, to share dashboards with or to preview as (Explorers and up)."""
     users = db.scalars(select(User).where(User.is_active.is_(True)).order_by(User.name, User.email))
     groups = db.scalars(select(Group).order_by(Group.name))
     return {

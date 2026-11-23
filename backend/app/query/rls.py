@@ -321,14 +321,15 @@ def datasets_using_as_access_table(db: Session, dataset_id: int) -> list[Dataset
 
 def forget_principal(db: Session, principal: str, principal_id: int) -> None:
     """Remove a deleted user or group from dataset shares and rule exemptions (ids may be reused)."""
-    from app.models import DatasetShare
+    from app.models import DashboardShare, DatasetShare
 
-    for share in db.scalars(
-        select(DatasetShare).where(
-            DatasetShare.principal == principal, DatasetShare.principal_id == principal_id
-        )
-    ):
-        db.delete(share)
+    for share_model in (DatasetShare, DashboardShare):
+        for share in db.scalars(
+            select(share_model).where(
+                share_model.principal == principal, share_model.principal_id == principal_id
+            )
+        ):
+            db.delete(share)
     if principal == "group":
         for rule in db.scalars(select(RlsRule)):
             if principal_id in (rule.exempt_groups or []):
