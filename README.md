@@ -3,8 +3,8 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–3 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
-> roles, groups, audit log).
+> Status: milestones 1–4 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> roles, groups, audit log; data connections: files, Oracle, PostgreSQL with scheduled sync).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)
@@ -63,7 +63,7 @@ Backend (Python 3.12+):
 cd backend
 pip install -e ".[dev]"
 alembic upgrade head && python -m app.bootstrap   # SQLite in ./data by default
-uvicorn app.main:app --reload                     # API docs: http://localhost:8000/api/docs
+JOBS_MODE=inline uvicorn app.main:app --reload    # inline: syncs run without Redis/Celery                     # API docs: http://localhost:8000/api/docs
 pytest -q
 ```
 
@@ -74,6 +74,12 @@ cd frontend
 npm ci
 npm run dev                                       # http://localhost:5173
 ```
+
+## Data
+
+Data → add a connection (upload a CSV/Excel/Parquet file, Oracle or PostgreSQL), then create datasets from
+its tables or a SQL query. Each dataset is copied into a fast local store and refreshed on its schedule
+(full or incremental). Use a **read-only** database user for connections.
 
 ## Single sign-on (Microsoft, UAE PASS)
 

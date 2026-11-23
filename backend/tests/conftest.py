@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -8,6 +9,7 @@ os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///
 os.environ["DATA_DIR"] = str(_tmp)
 os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests-only-0123456789"
 os.environ["SMTP_HOST"] = ""
+os.environ["JOBS_MODE"] = "eager"  # syncs run inside the request, so tests can check results directly
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -24,6 +26,8 @@ PASSWORD = "Password123"
 def fresh_db():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    shutil.rmtree(_tmp / "datasets", ignore_errors=True)  # ids restart with the fresh database
+    shutil.rmtree(_tmp / "uploads", ignore_errors=True)
     yield
 
 
@@ -65,6 +69,13 @@ class Client(TestClient):
 def client():
     with Client(app, base_url="http://testserver") as c:
         yield c
+
+
+@pytest.fixture
+def creator_client(client):
+    make_user("creator@test.com", Role.creator)
+    client.login("creator@test.com")
+    return client
 
 
 @pytest.fixture

@@ -5,6 +5,9 @@ import Layout from "./components/Layout";
 import { useAuth } from "./lib/auth";
 import type { Role } from "./lib/types";
 import Account from "./pages/Account";
+import ConnectionPage from "./pages/data/ConnectionPage";
+import DataHome from "./pages/data/DataHome";
+import DatasetPage from "./pages/data/DatasetPage";
 import Audit from "./pages/admin/Audit";
 import Groups from "./pages/admin/Groups";
 import SignInMethods from "./pages/admin/SignInMethods";
@@ -32,6 +35,9 @@ export default function App() {
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="account" element={<Account />} />
+        <Route path="data" element={<RequireAuth role="creator"><DataHome /></RequireAuth>} />
+        <Route path="data/connections/:id" element={<RequireAuth role="creator"><ConnectionPage /></RequireAuth>} />
+        <Route path="data/datasets/:id" element={<RequireAuth role="creator"><DatasetPage /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth role="admin"><Users /></RequireAuth>} />
         <Route path="admin/groups" element={<RequireAuth role="admin"><Groups /></RequireAuth>} />
         <Route path="admin/sign-in" element={<RequireAuth role="admin"><SignInMethods /></RequireAuth>} />

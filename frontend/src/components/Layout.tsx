@@ -17,7 +17,7 @@ interface NavItem {
 const MAIN: NavItem[] = [
   { to: "/", label: "Home", icon: <Home size={18} /> },
   { to: "/dashboards", label: "Dashboards", icon: <LayoutDashboard size={18} />, soon: true },
-  { to: "/data", label: "Data", icon: <Database size={18} />, role: "creator", soon: true },
+  { to: "/data", label: "Data", icon: <Database size={18} />, role: "creator" },
 ];
 const ADMIN: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: <Users size={18} />, role: "admin" },

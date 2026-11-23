@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     sso_state_minutes: int = 10
 
+    # Background jobs: "celery" (Docker), "inline" (background thread, for development without Redis),
+    # "eager" (run immediately in the request; tests)
+    jobs_mode: str = "celery"
+    timezone: str = "Asia/Dubai"  # schedules are interpreted in this time zone
+    max_upload_mb: int = 200
+    snapshots_to_keep: int = 3
+
     admin_email: str = "admin@example.com"
     admin_password: str = "ChangeMe123!"
     admin_name: str = "Administrator"

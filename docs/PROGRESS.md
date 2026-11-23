@@ -7,8 +7,8 @@
 | 1 | Foundation (repo, Docker, CI, migrations) | Done |
 | 2 | Auth, users, roles, groups, audit | Done (TOTP two-factor deferred to milestone 12) |
 | 3 | SSO: Microsoft Entra ID, UAE PASS | Done (real Microsoft/UAE PASS sign-in still to be tried by the owner) |
-| 4 | Connector framework + files + Oracle | Next |
-| 5 | Salesforce and REST connectors | — |
+| 4 | Connector framework + files + Oracle (+ PostgreSQL) | Done (Oracle still to be tried against a real database) |
+| 5 | Salesforce and REST connectors | Next |
 | 6 | Semantic layer | — |
 | 7 | Query engine + row-level security | — |
 | 8 | Chart builder UI | — |
@@ -59,15 +59,49 @@
 - Tests: 55 backend tests, including a fake IdP (forged signatures, wrong audience/issuer/nonce, expired
   tokens, state mismatch, missing state cookie, open redirect). Browser test of the full flow with dev_idp.
 
-## Next: milestone 4 (connector framework + files + Oracle)
+## What exists (milestone 4)
 
-- Connector interface (`test_connection`, `list_objects`, `get_schema`, `extract` as Arrow batches).
-- `connections` and `datasets` tables; secrets encrypted with `app/core/crypto.py`.
-- Parquet snapshot store (`DATA_DIR/datasets/<id>/v<n>/`), atomic switch, keep last 3.
-- Sync runs table, Celery task, Celery Beat schedules from dataset settings, failure emails.
-- File upload connector (CSV/Excel/Parquet) and Oracle (python-oracledb thin mode; table/view/SQL;
-  incremental by column). Oracle testing needs a reachable Oracle instance (owner's network, or a container).
-- Frontend: Data → Connections and Datasets pages, sync history, preview.
+- Connector interface `app/connectors/base.py` (`test_connection`, `list_objects`, `get_schema`,
+  `extract` → Arrow record batches, always at least one batch so empty tables still have columns).
+- `app/connectors/sql.py`: shared database logic: identifier whitelist + quoting (no escaping tricks),
+  custom SQL limited to one SELECT/WITH, incremental `WHERE col > :since` (`>=` when a primary key exists).
+- Oracle (`oracle.py`, python-oracledb thin mode; service name or SID; schemas filter; readable ORA errors),
+  PostgreSQL (`postgres.py`), files (`files.py`: CSV/TSV via DuckDB, Excel every sheet via openpyxl,
+  Parquet). Excel columns mixing numbers and text are kept as text.
+- `connections` (secrets encrypted JSON), `datasets`, `sync_runs` tables. Migration `0003`.
+- Snapshots `app/services/snapshots.py`: `DATA_DIR/datasets/<id>/v<n>/data.parquet`, written to a temp
+  folder then renamed (atomic), incremental merge by primary key with DuckDB (ANTI JOIN + UNION BY NAME),
+  last `SNAPSHOTS_TO_KEEP` versions kept, schema changes recorded on the run.
+- Sync engine `app/services/sync.py`: one active run per dataset, failure keeps the previous version live
+  and emails the owner; `JOBS_MODE` celery / inline / eager. Celery Beat runs `dispatch_due_syncs` every
+  minute; each dataset has a cron schedule in `TIMEZONE` (minimum every 5 minutes).
+- API `app/api/v1/data.py` (Creators and Admins): connection types, connections CRUD + test (also unsaved),
+  objects, schema, file upload/replace (re-syncs dependent datasets), datasets CRUD, sync now, runs,
+  preview. Creators can see and reuse every connection/dataset; only the owner or an admin can change one.
+  Changing what a dataset extracts rebuilds its snapshot from scratch.
+- Frontend: Data home, connection page (test, edit/replace file, tables list → create dataset), dataset
+  form (table or SQL, full/incremental, key, schedule presets), dataset page (status, preview, columns,
+  sync history with schema changes), live polling while syncing.
+- Tests: 92 backend tests. Real PostgreSQL source end to end (runs when `TEST_DATABASE_URL` is PostgreSQL,
+  as in CI); Oracle connector code exercised with SQLite standing in for the driver. Browser test: CSV
+  upload → dataset → preview; PostgreSQL connection → incremental dataset with schedule → new source rows →
+  Sync now → incremental merge.
+
+Known limits (by design for now):
+- Incremental syncs do not see rows deleted at the source; schedule an occasional full sync if that matters.
+- Oracle "live mode" (query the database directly instead of a snapshot) comes with the query engine (M7).
+- Data preview is limited to Creators/Admins until row-level security exists (M7).
+- Fixed: `.gitignore` had `data/`, which also ignored `frontend/src/pages/data/`; now anchored to `/data/`.
+
+## Next: milestone 5 (Salesforce and REST connectors)
+
+- Salesforce: OAuth connected app (or username + password + token for a first test), list objects and fields,
+  SOQL; REST for small objects, Bulk API 2.0 for large; incremental by `SystemModstamp`; deleted records
+  via `queryAll`/`IsDeleted`; API-limit handling.
+- REST/JSON: endpoint, method, headers, query params; auth API key / Bearer / Basic / OAuth2 client
+  credentials; pagination page/offset, cursor, next-link; JSONPath to records; flatten nested JSON;
+  incremental by date parameter or cursor; retries with back-off and rate limits.
+- Same Data UI, with a form per connector.
 
 ## Open questions for the owner
 
