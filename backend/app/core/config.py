@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     password_reset_minutes: int = 60
     cookie_secure: bool = False
     sso_state_minutes: int = 10
+    # Requests per minute per client address on sign-in and other sensitive endpoints (false = off; tests)
+    rate_limits: bool = True
+    login_per_minute: int = 120  # an office behind one address signs in together; accounts also lock
 
     # Background jobs: "celery" (Docker), "inline" (background thread, for development without Redis),
     # "eager" (run immediately in the request; tests)
@@ -66,6 +69,11 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "Lumen BI <no-reply@example.com>"
     smtp_tls: bool = True
+
+    @property
+    def secure_cookies(self) -> bool:
+        """Secure cookies when asked for, and always when Lumen is served over HTTPS."""
+        return self.cookie_secure or self.public_url.lower().startswith("https://")
 
     @property
     def sqlalchemy_url(self) -> str:

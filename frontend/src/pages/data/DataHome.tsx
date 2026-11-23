@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Combine, Database, FileSpreadsheet, Globe, Map as MapIcon, Server } from "lucide-react";
+import { Activity, Cloud, Combine, Database, FileSpreadsheet, Globe, Map as MapIcon, Server } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -25,7 +25,8 @@ export default function DataHome() {
 
   return (
     <>
-      <PageHeader title={t("Data")} description={t("Connect your systems, choose what to copy, and keep it refreshed on a schedule.")} />
+      <PageHeader title={t("Data")} description={t("Connect your systems, choose what to copy, and keep it refreshed on a schedule.")}
+        actions={<Link to="/data/monitor" className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"><Activity size={16} /> {t("Sync monitor")}</Link>} />
 
       <Card className="mb-8 p-5">
         <h2 className="font-semibold">{t("Add data")}</h2>

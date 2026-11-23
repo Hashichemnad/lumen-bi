@@ -11,6 +11,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests-only-0123456789"
 os.environ["SMTP_HOST"] = ""
 os.environ["JOBS_MODE"] = "eager"  # syncs run inside the request, so tests can check results directly
 os.environ["CACHE_BACKEND"] = "memory"
+os.environ["RATE_LIMITS"] = "false"  # tests that check limits turn them on
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -30,7 +31,11 @@ def fresh_db():
     Base.metadata.create_all(engine)
     shutil.rmtree(_tmp / "datasets", ignore_errors=True)  # ids restart with the fresh database
     shutil.rmtree(_tmp / "uploads", ignore_errors=True)
+    shutil.rmtree(_tmp / "backups", ignore_errors=True)
     cache.clear()
+    from app.services import org
+
+    org._cache = None  # email settings
     yield
 
 

@@ -1,7 +1,7 @@
 """All ORM models. Import from here so Alembic sees every table."""
 
 from app.models.ai import AiProvider, AiRequest, OAuthClient, OAuthCode, OAuthToken
-from app.models.audit import AuditLog
+from app.models.audit import AuditLog, UsageEvent
 from app.models.boundary import MapBoundary
 from app.models.chart import Chart
 from app.models.dashboard import Dashboard, DashboardFavorite, DashboardShare
@@ -41,6 +41,7 @@ __all__ = [
     "Subscription",
     "AppSetting",
     "AuditLog",
+    "UsageEvent",
     "Chart",
     "Dashboard",
     "DashboardFavorite",

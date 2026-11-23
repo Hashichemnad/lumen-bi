@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Mail } from "lucide-react";
+import { Bot, Mail, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ThemePicker } from "../components/ThemePicker";
-import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select } from "../components/ui";
+import { CodeInput, RecoveryCodes, TwoFactorSetup } from "../components/TwoFactor";
+import { Alert, Badge, Button, Card, Field, Input, Modal, PageHeader, Select } from "../components/ui";
 import type { CalendarDisplay } from "../lib/dates";
 import { t } from "../lib/i18n";
 import { usePrefs, type Preferences } from "../lib/prefs";
@@ -56,6 +57,77 @@ function Appearance() {
           </Select>
         </Field>
       </div>
+    </Card>
+  );
+}
+
+function TwoFactorCard() {
+  const { user, signedIn } = useAuth();
+  const [mode, setMode] = useState<"setup" | "off" | "codes" | null>(null);
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [error, setError] = useState("");
+  if (!user) return null;
+  const on = !!user.totp_enabled;
+  const close = () => { setMode(null); setPassword(""); setCode(""); setCodes(null); setError(""); };
+  const turnOff = async () => {
+    setError("");
+    try {
+      signedIn(await post<User>("/auth/two-factor/disable", { password }));
+      close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Could not save"));
+    }
+  };
+  const newCodes = async () => {
+    setError("");
+    try {
+      setCodes((await post<{ recovery_codes: string[] }>("/auth/two-factor/recovery-codes", { code })).recovery_codes);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Could not save"));
+    }
+  };
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck size={17} className="text-brand-600" /> {t("Two-factor sign-in")}</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        {on
+          ? t("On. Signing in with your password also needs a code from your phone. Recovery codes left: {n}", { n: user.recovery_codes_left ?? 0 })
+          : t("Add a code from an authenticator app on your phone to your password, so a stolen password is not enough.")}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {on ? (
+          <>
+            <Button variant="secondary" onClick={() => setMode("codes")}>{t("New recovery codes")}</Button>
+            <Button variant="secondary" onClick={() => setMode("off")}>{t("Turn off")}</Button>
+          </>
+        ) : <Button onClick={() => setMode("setup")}>{t("Turn on")}</Button>}
+      </div>
+      {mode === "setup" && (
+        <Modal open title={t("Set up two-factor sign-in")} onClose={close}>
+          <TwoFactorSetup onDone={(u) => { signedIn(u); close(); }} />
+        </Modal>
+      )}
+      {mode === "off" && (
+        <Modal open title={t("Turn off two-factor sign-in")} onClose={close}
+          footer={<><Button variant="secondary" onClick={close}>{t("Cancel")}</Button><Button variant="danger" onClick={turnOff} disabled={!password}>{t("Turn off")}</Button></>}>
+          {error && <Alert>{error}</Alert>}
+          <Field label={t("Current password")}><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus /></Field>
+        </Modal>
+      )}
+      {mode === "codes" && (
+        <Modal open title={t("New recovery codes")} onClose={close}
+          footer={codes ? undefined : <><Button variant="secondary" onClick={close}>{t("Cancel")}</Button><Button onClick={newCodes} disabled={code.replace(/\D/g, "").length !== 6}>{t("Make new codes")}</Button></>}>
+          {error && <Alert>{error}</Alert>}
+          {codes ? <RecoveryCodes codes={codes} onDone={close} /> : (
+            <>
+              <p className="text-sm text-slate-600">{t("Your old recovery codes stop working.")}</p>
+              <Field label={t("Code from your authenticator app")}><CodeInput value={code} onChange={setCode} /></Field>
+            </>
+          )}
+        </Modal>
+      )}
     </Card>
   );
 }
@@ -173,6 +245,7 @@ export default function Account() {
             {t("Sign out on all devices")}
           </Button>
         </Card>
+        {user.auth_provider === "local" && <TwoFactorCard />}
         <DailyDigest />
         <ConnectedApps />
         {user.auth_provider === "local" && (

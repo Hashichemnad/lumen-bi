@@ -176,6 +176,23 @@ def sign_out_everywhere(
     audit.record(db, "user.sign_out", user=admin, request=request, object_type="user", object_id=user.id)
 
 
+@router.post("/{user_id}/two-factor/reset", response_model=UserOut)
+def reset_two_factor(
+    user_id: int, request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+):
+    """For someone who lost their phone and recovery codes: turns two-factor off and signs them out. If it is
+    required, they set it up again at their next sign-in."""
+    from app.services import twofactor
+
+    user = _get(db, user_id)
+    twofactor.turn_off(user)
+    user.token_version += 1
+    audit.record(
+        db, "user.two_factor_reset", user=admin, request=request, object_type="user", object_id=user.id
+    )
+    return to_out(user)
+
+
 @router.post("/import", response_model=UserImportResult)
 async def import_users(
     request: Request,

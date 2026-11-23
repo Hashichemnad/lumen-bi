@@ -74,7 +74,7 @@ def sso_start(provider_id: int, next: str = "/", db: Session = Depends(get_db)):
         max_age=s.sso_state_minutes * 60,
         path=STATE_PATH,
         httponly=True,
-        secure=s.cookie_secure,
+        secure=s.secure_cookies,
         samesite="lax",
     )
     return resp

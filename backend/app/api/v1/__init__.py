@@ -12,6 +12,7 @@ from app.api.v1 import (
     governance,
     groups,
     model,
+    monitor,
     oauth,
     query,
     settings,
@@ -39,3 +40,4 @@ api_router.include_router(governance.router)
 api_router.include_router(sharing.router)
 api_router.include_router(ai.router)
 api_router.include_router(oauth.router)
+api_router.include_router(monitor.router)

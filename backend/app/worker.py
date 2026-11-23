@@ -24,6 +24,8 @@ celery_app.conf.update(
         "freshness-checks": {"task": "lumen.freshness_checks", "schedule": 900.0},
         # Daily AI digests (sent once a day from 7:00, organisation time)
         "ai-digests": {"task": "lumen.ai_digests", "schedule": 900.0},
+        # Nightly backup and clean-up of old usage events and sign-in codes
+        "housekeeping": {"task": "lumen.housekeeping", "schedule": 3600.0},
     },
 )
 app = celery_app  # `celery -A app.worker` looks for `app`
@@ -81,3 +83,17 @@ def ai_digests() -> int:
     from app.services.ai.digest import run_digests
 
     return run_digests()
+
+
+@celery_app.task(name="lumen.housekeeping")
+def housekeeping() -> dict:
+    from app.services.housekeeping import run
+
+    return run()
+
+
+@celery_app.task(name="lumen.backup")
+def make_backup() -> str:
+    from app.services.backup import create
+
+    return create().name

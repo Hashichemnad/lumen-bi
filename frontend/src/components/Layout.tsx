@@ -1,12 +1,13 @@
 import clsx from "clsx";
 import {
   Building2, ChevronDown, Database, History, Home, KeyRound, LayoutDashboard, LogOut, Menu, PieChart, Settings,
-  Sparkles, Users, UsersRound, X,
+  Activity, BarChart3, Sparkles, Users, UsersRound, X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../lib/auth";
+import { useBranding } from "../lib/branding";
 import { t } from "../lib/i18n";
 import type { Role } from "../lib/types";
 import { useWorkspace, type WorkspacePick } from "../lib/workspace";
@@ -29,12 +30,16 @@ const ADMIN: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: <Users size={18} />, role: "admin" },
   { to: "/admin/groups", label: "Groups", icon: <UsersRound size={18} />, role: "admin" },
   { to: "/admin/sign-in", label: "Sign-in methods", icon: <KeyRound size={18} />, role: "admin" },
+  { to: "/admin/usage", label: "Usage", icon: <BarChart3 size={18} />, role: "admin" },
+  { to: "/data/monitor", label: "Sync monitor", icon: <Activity size={18} />, role: "admin" },
   { to: "/admin/ai", label: "AI", icon: <Sparkles size={18} />, role: "admin" },
   { to: "/admin/settings", label: "Settings", icon: <Settings size={18} />, role: "admin" },
   { to: "/admin/audit", label: "Audit log", icon: <History size={18} />, role: "admin" },
 ];
 
 export function Logo({ size = 28 }: { size?: number }) {
+  const { logo } = useBranding();
+  if (logo) return <img src={logo} alt="" width={size} height={size} className="shrink-0 rounded-md object-contain" style={{ width: size, height: size }} />;
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true" className="shrink-0">
       <rect width="28" height="28" rx="7" className="logo-mark fill-brand-600" />
@@ -94,12 +99,13 @@ function initials(name: string): string {
 function Sidebar({ compact, onPick }: { compact: boolean; onPick?: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const brandName = useBranding().name;
   const name = user?.name || user?.email || "";
   return (
     <>
       <div className={clsx("flex h-16 items-center gap-2.5", compact ? "justify-center" : "px-5")}>
         <Logo />
-        {!compact && <span className="font-display text-[17px] font-bold tracking-tight text-slate-900">Lumen</span>}
+        {!compact && <span className="truncate font-display text-[17px] font-bold tracking-tight text-slate-900">{brandName}</span>}
       </div>
       <nav aria-label={t("Main")} className={clsx("flex-1 overflow-y-auto", compact ? "px-2" : "px-3")}>
         {!compact && <WorkspacePicker />}
@@ -136,6 +142,7 @@ function Sidebar({ compact, onPick }: { compact: boolean; onPick?: () => void })
 export default function Layout() {
   // Work areas (the chart builder, a dashboard) use the full width, with an icon-only menu
   const location = useLocation();
+  const brandName = useBranding().name;
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [location.pathname]);
   const params = new URLSearchParams(location.search);
@@ -161,7 +168,7 @@ export default function Layout() {
         <div className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 md:hidden">
           <button onClick={() => setOpen(true)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label={t("Open menu")}><Menu size={20} /></button>
           <Logo size={24} />
-          <span className="font-display font-bold">Lumen</span>
+          <span className="font-display font-bold">{brandName}</span>
         </div>
         <main className={clsx("min-w-0 flex-1", compact ? "overflow-hidden" : "overflow-y-auto")}>
           {compact ? <Outlet /> : (

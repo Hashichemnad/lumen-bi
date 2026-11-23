@@ -3,10 +3,12 @@ import { Building2, IdCard, KeyRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
+import { CodeInput, TwoFactorSetup } from "../components/TwoFactor";
 import { Alert, Button, Field, Input } from "../components/ui";
-import { get } from "../lib/api";
-import { useAuth } from "../lib/auth";
-import type { ProviderPublic } from "../lib/types";
+import { get, post } from "../lib/api";
+import { useAuth, type TwoFactorStep } from "../lib/auth";
+import { useBranding } from "../lib/branding";
+import type { ProviderPublic, User } from "../lib/types";
 import AuthShell from "./AuthShell";
 import { t } from "../lib/i18n";
 
@@ -32,8 +34,43 @@ function SSOButtons({ next }: { next: string }) {
   );
 }
 
+function CodeStep({ ticket, onDone, onBack }: { ticket: string; onDone: (u: User) => void; onBack: () => void }) {
+  const [code, setCode] = useState("");
+  const [recovery, setRecovery] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      onDone(await post<User>("/auth/login/two-factor", { ticket, code }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Sign-in failed"));
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {error && <Alert>{error}</Alert>}
+      <Field label={recovery ? t("Recovery code") : t("Code from your authenticator app")}>
+        <CodeInput value={code} onChange={setCode} allowRecovery={recovery} />
+      </Field>
+      <Button type="submit" className="w-full" disabled={busy || !code.trim()}>{busy ? t("Checking…") : t("Sign in")}</Button>
+      <div className="flex justify-between text-sm">
+        <button type="button" className="text-brand-600 hover:underline" onClick={onBack}>{t("Back")}</button>
+        <button type="button" className="text-brand-600 hover:underline" onClick={() => { setRecovery((r) => !r); setCode(""); }}>
+          {recovery ? t("Use the app instead") : t("Use a recovery code")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, signedIn } = useAuth();
+  const [step, setStep] = useState<TwoFactorStep | null>(null);
+  const branding = useBranding();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? "/";
@@ -50,8 +87,9 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const next = await login(email, password);
+      if (next) setStep(next);
+      else navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Sign-in failed"));
     } finally {
@@ -59,8 +97,27 @@ export default function Login() {
     }
   }
 
+  const done = (u: User) => {
+    signedIn(u);
+    navigate(from, { replace: true });
+  };
+  if (step?.two_factor === "code") {
+    return (
+      <AuthShell title={t("Two-factor sign-in")} subtitle={t("Enter the code from your authenticator app.")}>
+        <CodeStep ticket={step.ticket} onDone={done} onBack={() => setStep(null)} />
+      </AuthShell>
+    );
+  }
+  if (step?.two_factor === "setup") {
+    return (
+      <AuthShell title={t("Set up two-factor sign-in")} subtitle={t("Your organisation asks for a code from your phone at every sign-in.")}>
+        <TwoFactorSetup ticket={step.ticket} onDone={done} />
+      </AuthShell>
+    );
+  }
+
   return (
-    <AuthShell title={t("Sign in")} subtitle={t("Use your work email and password.")}>
+    <AuthShell title={t("Sign in")} subtitle={branding.login_message || t("Use your work email and password.")}>
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <SSOButtons next={from} />
       <form onSubmit={submit} className="space-y-4">

@@ -3,12 +3,13 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–10 of 14 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
-> roles, groups, audit log; data connections: files, Oracle, PostgreSQL, Salesforce, REST APIs with
-> scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins; query
-> engine with table calculations, caching and row-level security; chart builder with 33 chart types;
-> dashboards with sections; PDF, PNG and Excel exports).
-> See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
+> Status: all 14 milestones are built (sign-in with email, two-factor, Microsoft and UAE PASS; connections and
+> scheduled sync; data modelling; query engine with row-level security and masking; 33 chart types;
+> dashboards, KPI goals, subscriptions, alerts and embedding; Arabic and three themes; AI and an MCP server for
+> Claude; usage analytics, sync monitor, lineage, backups). See [docs/PROGRESS.md](docs/PROGRESS.md).
+>
+> Guides: [for everyone](docs/USER_GUIDE.md) · [for admins](docs/ADMIN_GUIDE.md) ·
+> [security review](docs/SECURITY_REVIEW.md) · [load test](docs/LOADTEST.md).
 
 ## Run it with Docker (recommended)
 
@@ -34,13 +35,13 @@ The first build takes a few minutes (it downloads images and packages). Later st
 | `ENCRYPTION_KEY` | `openssl rand -base64 32` |
 | `POSTGRES_PASSWORD` | any long random password |
 | `ADMIN_PASSWORD` | at least 10 characters with a letter and a number |
-| `SMTP_*` | your mail server, for password-reset and invite emails |
+| `SMTP_*` | your mail server (or set it later in Admin → Settings → Email) |
 
 ### Going live on a server with a domain
 
 1. Point a DNS record (e.g. `bi.yourcompany.ae`) at the server.
-2. In `.env`: `SITE_ADDRESS=bi.yourcompany.ae`, `HTTP_PORT=80`, `PUBLIC_URL=https://bi.yourcompany.ae`,
-   `COOKIE_SECURE=true`.
+2. In `.env`: `SITE_ADDRESS=bi.yourcompany.ae`, `HTTP_PORT=80`, `PUBLIC_URL=https://bi.yourcompany.ae`
+   (cookies become secure automatically; Lumen refuses to start over HTTPS with the sample keys).
 3. `docker compose up -d`. Caddy gets an HTTPS certificate automatically (ports 80 and 443 must be open).
 
 ### Everyday commands
@@ -52,11 +53,14 @@ docker compose pull && docker compose up --build -d   # update after `git pull`
 docker compose down               # stop (data is kept in Docker volumes)
 ```
 
-Backup the metadata database:
+Backups are made every night (Admin → Settings → Backups; download them to keep copies elsewhere). By hand:
 
 ```bash
-docker compose exec postgres pg_dump -U lumen lumen > backup-$(date +%F).sql
+docker compose exec api python -m app.backup create
+docker compose exec api python -m app.backup list
 ```
+
+Restoring is described in the [admin guide](docs/ADMIN_GUIDE.md#restore).
 
 ## Develop without Docker
 
@@ -128,5 +132,5 @@ sara@company.ae,Sara Ahmed,creator,Finance;Sales,UAE;KSA,Dubai
 backend/    FastAPI API, Celery worker, Alembic migrations, tests
 frontend/   React + TypeScript web app
 deploy/     Caddy (HTTPS + static files) and its Dockerfile
-docs/       Spec and progress notes
+docs/       Spec, progress notes and guides
 ```

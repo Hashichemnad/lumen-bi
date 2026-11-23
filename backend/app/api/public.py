@@ -18,6 +18,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
+from app.core.ratelimit import limit
 from app.db import get_db
 from app.services import mcp, oauth
 
@@ -73,7 +74,13 @@ async def _body(request: Request) -> dict:
     return {k: v for k, v in form.items() if isinstance(v, str)}
 
 
-@router.post("/oauth/register")
+def _token_key(request: Request) -> str:
+    import hashlib
+
+    return hashlib.sha256(request.headers.get("authorization", "").encode()).hexdigest()[:32]
+
+
+@router.post("/oauth/register", dependencies=[Depends(limit("oauth_register", 10, 60))])
 async def register(request: Request, db: Session = Depends(get_db)):
     try:
         client = oauth.register(db, await _body(request))
@@ -94,7 +101,7 @@ async def register(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/oauth/token")
+@router.post("/oauth/token", dependencies=[Depends(limit("oauth_token", 60, 60))])
 async def token(request: Request, db: Session = Depends(get_db)):
     try:
         return JSONResponse(oauth.exchange(db, await _body(request)), headers=NO_STORE)
@@ -102,7 +109,7 @@ async def token(request: Request, db: Session = Depends(get_db)):
         return _oauth_error(exc)
 
 
-@router.post("/oauth/revoke")
+@router.post("/oauth/revoke", dependencies=[Depends(limit("oauth_token", 60, 60))])
 async def revoke(request: Request, db: Session = Depends(get_db)):
     value = str((await _body(request)).get("token") or "")
     if value:
@@ -129,7 +136,8 @@ def _origin_ok(request: Request) -> bool:
     return (o.scheme, o.netloc) == (own.scheme, own.netloc)
 
 
-@router.post("/mcp")
+# Per sign-in (Claude's servers share addresses between many people)
+@router.post("/mcp", dependencies=[Depends(limit("mcp", 240, 60, key=_token_key))])
 async def mcp_post(request: Request, db: Session = Depends(get_db)):
     if not _origin_ok(request):
         return JSONResponse({"error": "Origin not allowed"}, status_code=403)

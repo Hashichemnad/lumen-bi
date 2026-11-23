@@ -153,6 +153,11 @@ function UserModal({ user, groups, onClose }: { user: User | "new"; groups: Grou
             <Button variant="secondary" size="sm" onClick={() => run(() => post(`/users/${user.id}/sign-out`), "Signed out of all sessions")}>
               {t("Sign out everywhere")}
             </Button>
+            {user.totp_enabled && (
+              <Button variant="secondary" size="sm" onClick={() => confirm(t("Turn off two-factor sign-in for {email}? Use this when they lost their phone and recovery codes.", { email: user.email })) && run(() => post(`/users/${user.id}/two-factor/reset`), "Two-factor sign-in was reset")}>
+                {t("Reset two-factor")}
+              </Button>
+            )}
             {user.locked && (
               <Button variant="secondary" size="sm" onClick={() => run(() => patch(`/users/${user.id}`, { unlock: true }), "Account unlocked")}>
                 {t("Unlock")}

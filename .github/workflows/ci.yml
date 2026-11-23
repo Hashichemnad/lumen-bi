@@ -80,3 +80,26 @@ jobs:
           set: |
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
+
+  # Known vulnerabilities in dependencies: only for pull requests into main
+  audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Python packages
+        working-directory: backend
+        run: |
+          pip install pip-audit
+          python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml','rb'))['project']['dependencies']))" > /tmp/req.txt
+          pip-audit -r /tmp/req.txt
+      - name: npm packages
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
