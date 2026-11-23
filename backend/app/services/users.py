@@ -18,6 +18,7 @@ def is_locked(user: User) -> bool:
 def to_out(user: User) -> UserOut:
     out = UserOut.model_validate(user, from_attributes=True)
     out.locked = is_locked(user)
+    out.recovery_codes_left = len(user.recovery_codes or [])
     out.sign_in_methods = [
         IdentityOut(
             provider_id=i.provider_id,

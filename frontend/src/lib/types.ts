@@ -35,6 +35,8 @@ export interface User {
   created_at: string;
   groups: GroupRef[];
   sign_in_methods: SignInMethod[];
+  totp_enabled?: boolean;
+  recovery_codes_left?: number;
   preferences?: { theme?: "classic" | "advanced" | "analyst"; language?: "en" | "ar"; calendar?: "gregorian" | "hijri" | "both"; ai_digest?: boolean };
 }
 

@@ -5,7 +5,7 @@
 | # | Milestone | Status |
 | --- | --- | --- |
 | 1 | Foundation (repo, Docker, CI, migrations) | Done |
-| 2 | Auth, users, roles, groups, audit | Done (TOTP two-factor deferred to milestone 12) |
+| 2 | Auth, users, roles, groups, audit | Done (two-factor sign-in added in milestone 14) |
 | 3 | SSO: Microsoft Entra ID, UAE PASS | Done (real Microsoft/UAE PASS sign-in still to be tried by the owner) |
 | 4 | Connector framework + files + Oracle (+ PostgreSQL) | Done (Oracle still to be tried against a real database) |
 | 5 | Salesforce and REST connectors | Done (to be tried against a real Salesforce org) |
@@ -17,7 +17,7 @@
 | 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Done (layout changes from the owner's testing to follow) |
 | 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | Done (Teams and WhatsApp to be tried with real accounts) |
 | 13 | AI and MCP server | Done (real cloud and self-hosted models, and Claude, to be tried by the owner) |
-| 14 | Admin and hardening | Next |
+| 14 | Admin and hardening | Done (data entry / write-back not built: owner to decide) |
 
 ## What exists (milestones 1–2)
 
@@ -461,17 +461,69 @@ the UI must be attractive and very easy to use, with designs shown before buildi
   explain, build a dashboard, explain a tile, anomaly alert, formula helper, sensitive toggle, daily summary,
   MCP consent → tokens → tools, connected apps, comparison.
 
-## Next: milestone 14 (admin and hardening)
+## What exists (milestone 14)
 
-- Admin: usage analytics, connection and sync monitor, user CSV import, branding, backup and restore.
-- Hardening: rate limits, security headers review, load test, two-factor sign-in (TOTP), dependency audit.
-- Data entry (write-back): optional, still to be decided by the owner.
+- **Two-factor sign-in** (`services/twofactor.py`, migration `0012`): authenticator apps (TOTP, RFC 6238;
+  ±30 s; a code works once), 10 one-time recovery codes (hashed), secret encrypted. Sign-in becomes two steps
+  (a 5-minute ticket after the password); wrong codes count toward the lockout. My account: turn on (QR code),
+  new recovery codes, turn off (password; not when required). Admin → Settings: require it for admins or
+  everyone with a password (they set it up at the next sign-in); Admin → Users: reset for someone who lost
+  their phone (also signs them out). Single sign-on users are not affected. Audited.
+- **Rate limits** (`core/ratelimit.py`, per address, Redis shared by all workers, memory fallback): sign-in
+  and two-factor steps (`LOGIN_PER_MINUTE`, default 120 for offices behind one address; accounts also lock),
+  password reset, OAuth registration and tokens, embed sessions, MCP (per sign-in).
+- **Usage analytics** (Admin → Usage; `usage_events`): active people per day, sign-ins, dashboard and chart
+  views (embedded counted, reports rendered for subscriptions not), exports, AI and MCP requests, most viewed
+  dashboards with people and last view, dashboards not opened, most active people, accounts by role, people
+  who never signed in; 7 / 30 / 90 days. Events kept a year.
+- **Sync monitor** (Data → Sync monitor, Creators and up): every dataset over 7 days — failed, late, never
+  synced first; runs and failures, usual duration, last error, next run; Retry / Sync now; refreshes itself.
+- **Lineage and impact** (Dataset → Lineage; `services/lineage.py`): connection and parent datasets up the
+  chain; datasets built from it, charts, dashboards, subscriptions, alerts, data checks, access-table use;
+  choose a field to see the calculated fields, charts and dashboard filters using it.
+- **Branding** (Admin → Settings): name, logo (PNG/JPEG/WebP/SVG ≤ 200 KB, shown only as an image), accent
+  colour (must keep white button text readable; applied to buttons and highlights in every theme, charts
+  keep their validated palette), sign-in page message. Public `GET /branding` for the sign-in page.
+- **Email settings** (Admin → Settings → Email): SMTP server, port, user, password (encrypted, never
+  returned), sender, STARTTLS, test email; replaces the `SMTP_*` environment settings when set.
+- **Backups** (`services/backup.py`, `python -m app.backup create | list | restore`): one `.tar.gz` with every
+  table (JSON lines) and the current snapshot of every dataset plus uploads; nightly at a chosen hour, newest N
+  kept (Admin → Settings → Backups: back up now, download, delete); restore from the command line with Lumen
+  stopped (refuses a backup from another database version; resets PostgreSQL id sequences). Hourly
+  housekeeping job: nightly backup, old usage events, used OAuth codes and expired tokens.
+- **Hardening** (`docs/SECURITY_REVIEW.md`, OWASP Top 10): Content-Security-Policy (scripts only from Lumen),
+  Permissions-Policy and HSTS in Caddy; the API refuses to start over HTTPS with the sample `SECRET_KEY` or
+  without `ENCRYPTION_KEY`; secure cookies follow `PUBLIC_URL`; the QR code is shown as an image; dependency
+  audit (`pip-audit`, `npm audit`) in CI for pull requests to main — no known vulnerabilities today.
+- **Load test** (`backend/tools/loadtest.py`, `docs/LOADTEST.md`): 30 people constantly opening dashboards on
+  one API process and 2 cores: 92 requests per second, a whole dashboard in 0.5 s (median) / 1.1 s (95th
+  percentile), no errors; without the cache 0.65 s / 1.2 s.
+- **Guides**: `docs/USER_GUIDE.md`, `docs/ADMIN_GUIDE.md` (roles, two-factor, monitoring, backups and
+  restore, updating); README updated.
+- Arabic for every new screen and message (about 1,550 texts).
+- Tests: 425 backend tests on PostgreSQL (`test_twofactor.py`: RFC 6238 test vector, sign-in with a code, no
+  replay, recovery codes once, wrong codes lock, ticket is not a session and ends with sign-out-everywhere,
+  required set-up at sign-in, cannot turn off when required, admin-only policy and reset, rate limits;
+  `test_admin.py`: branding validation, email settings used and password hidden, backup create / download /
+  restore round trip with data, nightly once and pruning, usage counts without rendered reports, sync monitor,
+  lineage and field impact, permissions). Browser test with the production Content-Security-Policy:
+  branding on every page and the sign-in page, backups, email, usage, sync monitor, lineage, two-factor set-up
+  and sign-in, two-factor required at sign-in, Arabic — no CSP violations or page errors.
+
+## Next
+
+- The owner tests the whole system and sends layout and wording changes.
+- Data entry (write-back of targets and comments into Lumen): only if wanted.
+- Before go-live: real Microsoft / UAE PASS, Salesforce, Oracle, Teams, WhatsApp and AI accounts; HTTPS
+  domain; strong keys; two-factor policy; an external penetration test if Lumen will be on the internet.
 
 ## Open questions for the owner
 
 - Self-hosted AI: is there (or will there be) a GPU server to run the local model? Which datasets should be
   marked sensitive?
 - AI roles: Ask Data and Explain are for Explorers and up (the role description). Should Viewers have them too?
+- Two-factor sign-in: required for admins, for everyone with a password, or optional?
+- Data entry (write-back): wanted or not?
 - Hosting: on-premise or UAE cloud region?
 - First Salesforce objects and Oracle schemas?
 - WhatsApp: which Meta business account and approved template name to use (the template needs three values:

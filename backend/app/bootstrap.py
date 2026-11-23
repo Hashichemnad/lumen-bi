@@ -15,8 +15,11 @@ log = logging.getLogger("lumen.bootstrap")
 def check_secrets() -> None:
     s = get_settings()
     weak = len(s.secret_key) < 32 or s.secret_key.startswith(("change-me", "dev-secret"))
-    if weak and s.cookie_secure:
+    # Served over HTTPS (or secure cookies asked for) = a real installation: refuse the sample values
+    if weak and s.secure_cookies:
         raise SystemExit("SECRET_KEY is missing or too short. Generate one with: openssl rand -hex 32")
+    if s.secure_cookies and (not s.encryption_key or s.encryption_key.startswith("change-me")):
+        raise SystemExit("ENCRYPTION_KEY is missing. Generate one with: openssl rand -base64 32")
     if weak:
         log.warning("SECRET_KEY is weak. Fine for a local trial, but set a strong one before going live.")
 

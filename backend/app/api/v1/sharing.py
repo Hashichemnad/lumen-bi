@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import current_user, require_role
 from app.core.config import get_settings
 from app.core.crypto import encrypt
+from app.core.ratelimit import limit
 from app.db import get_db
 from app.models import (
     Alert,
@@ -642,7 +643,7 @@ class SessionIn(BaseModel):
     display: str | None = Field(None, max_length=200)  # a display link's token
 
 
-@router.post("/embed/session")
+@router.post("/embed/session", dependencies=[Depends(limit("embed", 60, 60))])
 def embed_session(body: SessionIn, request: Request, db: Session = Depends(get_db)):
     try:
         if body.display:

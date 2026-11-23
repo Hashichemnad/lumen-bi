@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from "react-router-do
 
 import Layout from "./components/Layout";
 import { useAuth } from "./lib/auth";
+import { BrandingEffect } from "./lib/branding";
 import type { Role } from "./lib/types";
 import Account from "./pages/Account";
 import ChartList from "./pages/charts/ChartList";
@@ -24,6 +25,8 @@ import ResetPassword from "./pages/ResetPassword";
 import EmbedPage, { DisplayPage } from "./pages/EmbedPage";
 import OAuthConsent from "./pages/OAuthConsent";
 import AdminAi from "./pages/admin/Ai";
+import AdminUsage from "./pages/admin/Usage";
+import SyncMonitor from "./pages/data/SyncMonitor";
 import { t } from "./lib/i18n";
 
 // The chart builder (and ECharts) loads only when opened
@@ -47,6 +50,8 @@ function RequireAuth({ children, role }: { children: ReactNode; role?: Role }) {
 
 export default function App() {
   return (
+    <>
+    <BrandingEffect />
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -62,6 +67,7 @@ export default function App() {
         <Route path="charts" element={<RequireAuth role="explorer"><ChartList /></RequireAuth>} />
         <Route path="charts/:id" element={<RequireAuth role="explorer"><Suspense fallback={<div className="p-6 text-sm text-slate-500">{t("Loading…")}</div>}><ChartBuilder /></Suspense></RequireAuth>} />
         <Route path="data" element={<RequireAuth role="creator"><DataHome /></RequireAuth>} />
+        <Route path="data/monitor" element={<RequireAuth role="creator"><SyncMonitor /></RequireAuth>} />
         <Route path="data/maps" element={<RequireAuth role="creator"><MapsPage /></RequireAuth>} />
         <Route path="data/connections/:id" element={<RequireAuth role="creator"><ConnectionPage /></RequireAuth>} />
         <Route path="data/datasets/:id" element={<RequireAuth role="creator"><DatasetPage /></RequireAuth>} />
@@ -71,9 +77,11 @@ export default function App() {
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="admin/settings" element={<RequireAuth role="admin"><AdminSettings /></RequireAuth>} />
         <Route path="admin/audit" element={<RequireAuth role="admin"><Audit /></RequireAuth>} />
+        <Route path="admin/usage" element={<RequireAuth role="admin"><AdminUsage /></RequireAuth>} />
         <Route path="admin/ai" element={<RequireAuth role="admin"><AdminAi /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

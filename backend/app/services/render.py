@@ -49,6 +49,8 @@ def render_dashboard(user_id: int, dashboard_id: int, fmt: str, state: str | Non
                     device_scale_factor=2 if fmt == "png" else 1,
                     locale="en-GB",
                     timezone_id=settings.timezone,
+                    # Usage analytics count these as reports, not as someone opening the dashboard
+                    extra_http_headers={"X-Lumen-Render": "1"},
                 )
                 context.add_cookies(
                     [

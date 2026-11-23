@@ -7,10 +7,18 @@ import { ROLE_LEVEL, type Role, type User } from "./types";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Signs in, or returns the next step when two-factor sign-in is on (or must be set up). */
+  login: (email: string, password: string) => Promise<TwoFactorStep | null>;
+  /** Finish signing in with the user the second step returned */
+  signedIn: (user: User) => void;
   /** Signs out; for SSO sessions the browser is sent to the provider's logout page. */
   logout: (everywhere?: boolean) => Promise<void>;
   hasRole: (minimum: Role) => boolean;
+}
+
+export interface TwoFactorStep {
+  two_factor: "code" | "setup";
+  ticket: string;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -40,9 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading: isLoading,
     login: async (email, password) => {
-      const me = await api<User>("/auth/login", { method: "POST", body: { email, password } });
-      qc.setQueryData(["me"], me);
+      const res = await api<User | TwoFactorStep>("/auth/login", { method: "POST", body: { email, password } });
+      if ("two_factor" in res) return res;
+      qc.setQueryData(["me"], res);
+      return null;
     },
+    signedIn: (me) => qc.setQueryData(["me"], me),
     logout: async (everywhere = false) => {
       const res = await post<{ logout_url: string | null }>(`/auth/logout${everywhere ? "?everywhere=true" : ""}`).catch(
         () => null,

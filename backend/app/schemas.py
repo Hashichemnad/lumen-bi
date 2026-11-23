@@ -141,6 +141,8 @@ class UserOut(ORM):
     groups: list[GroupRef] = []
     sign_in_methods: list[IdentityOut] = []
     preferences: dict[str, Any] = {}
+    totp_enabled: bool = False
+    recovery_codes_left: int = 0
 
 
 class UserCreate(BaseModel):

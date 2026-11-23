@@ -44,7 +44,7 @@ from app.schemas import (
     ShareEntry,
 )
 from app.semantic import model
-from app.services import audit, checks, excel, render, versions, workspaces
+from app.services import audit, checks, excel, render, usage, versions, workspaces
 from app.services import dashboards as svc
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
@@ -228,6 +228,8 @@ def get_dashboard(
         level = "view"  # embedded: read only, whoever the user is
     out = _detail(db, d, level, user)
     out["embedded"] = getattr(request.state, "embedded", False)
+    source = "render" if request.headers.get("x-lumen-render") else "embed" if out["embedded"] else "app"
+    usage.track(db, user, "dashboard_view", d.id, source)
     return out
 
 

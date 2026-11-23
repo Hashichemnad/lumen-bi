@@ -19,10 +19,13 @@ def send_email(
     attachments: list[tuple[str, bytes, str]] | None = None,
 ) -> None:
     """Send an email (plain text, optional HTML and attachments as (filename, bytes, mime type)).
-    Without SMTP configured, the email is written to the log."""
-    s = get_settings()
+    Without SMTP configured, the email is written to the log. SMTP comes from Admin → Settings → Email, or
+    the SMTP_* environment settings."""
+    from app.services.org import smtp as smtp_settings
+
+    s = smtp_settings()
     msg = EmailMessage()
-    msg["From"] = s.smtp_from
+    msg["From"] = s["sender"] or get_settings().smtp_from
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
@@ -31,14 +34,14 @@ def send_email(
     for name, data, mime in attachments or []:
         main, _, sub = mime.partition("/")
         msg.add_attachment(data, maintype=main, subtype=sub or "octet-stream", filename=name)
-    if not s.smtp_host:
+    if not s["host"]:
         log.warning("SMTP not configured; email to %s\nSubject: %s\n\n%s", to, subject, text)
         OUTBOX.append(msg)
         del OUTBOX[:-50]
         return
-    with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=20) as smtp:
-        if s.smtp_tls:
+    with smtplib.SMTP(s["host"], s["port"], timeout=20) as smtp:
+        if s["tls"]:
             smtp.starttls()
-        if s.smtp_user:
-            smtp.login(s.smtp_user, s.smtp_password)
+        if s["user"]:
+            smtp.login(s["user"], s["password"])
         smtp.send_message(msg)

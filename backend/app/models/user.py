@@ -52,6 +52,13 @@ class User(Base):
     # Incremented to invalidate every existing session of this user
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # Two-factor sign-in (authenticator app, TOTP) for password sign-in. Secrets encrypted; recovery codes
+    # stored as hashes; the last time step used, so a code cannot be used twice
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    totp_secret_enc: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    totp_pending_enc: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    totp_last_step: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    recovery_codes: Mapped[list] = mapped_column(JSONType, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
@@ -71,6 +78,11 @@ class User(Base):
         kwargs.setdefault("is_active", True)
         kwargs.setdefault("failed_logins", 0)
         kwargs.setdefault("token_version", 0)
+        kwargs.setdefault("totp_enabled", False)
+        kwargs.setdefault("totp_secret_enc", "")
+        kwargs.setdefault("totp_pending_enc", "")
+        kwargs.setdefault("totp_last_step", 0)
+        kwargs.setdefault("recovery_codes", [])
         super().__init__(**kwargs)
 
     @property

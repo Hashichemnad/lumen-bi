@@ -13,6 +13,7 @@ import CombineModal from "./CombineModal";
 import DatasetForm from "./DatasetForm";
 import ModelTab from "./ModelTab";
 import QualityTab from "./QualityTab";
+import LineageTab from "./LineageTab";
 import SecurityTab from "./SecurityTab";
 import { t as tr } from "../../lib/i18n";
 
@@ -33,7 +34,7 @@ export default function DatasetPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, hasRole } = useAuth();
-  const [tab, setTab] = useState<"preview" | "model" | "security" | "quality" | "history">("preview");
+  const [tab, setTab] = useState<"preview" | "model" | "security" | "quality" | "lineage" | "history">("preview");
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
 
@@ -129,11 +130,11 @@ export default function DatasetPage() {
       {d.source.sql && <pre className="mb-4 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{d.source.sql}</pre>}
 
       <div className="mb-3 flex gap-1 border-b border-slate-200">
-        {(["preview", "model", "security", "quality", "history"] as const).map((t) => (
+        {(["preview", "model", "security", "quality", "lineage", "history"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx("-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize",
               tab === t ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
-            {t === "history" ? tr("Sync history") : tr({ preview: "Preview", model: "Model", security: "Security", quality: "Quality" }[t])}
+            {t === "history" ? tr("Sync history") : tr({ preview: "Preview", model: "Model", security: "Security", quality: "Quality", lineage: "Lineage" }[t])}
           </button>
         ))}
       </div>
@@ -174,6 +175,7 @@ export default function DatasetPage() {
       {tab === "security" && <SecurityTab datasetId={d.id} canEdit={canEdit} columns={(d.columns ?? []).map((c) => c.name)} dataset={d} />}
       {tab === "quality" && <QualityTab datasetId={d.id} columns={(d.columns ?? []).map((c) => c.name)} canEdit={canEdit} />}
 
+      {tab === "lineage" && <LineageTab datasetId={d.id} />}
       {tab === "history" && (
         <Card>
           <Table head={[tr("Started"), tr("Trigger"), tr("Mode"), tr("Status"), tr("Rows"), tr("Time"), tr("Details")]}>

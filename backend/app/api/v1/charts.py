@@ -16,7 +16,7 @@ from app.models import Chart, Dataset, Role, User, Workspace
 from app.query import rls
 from app.query.spec import QuerySpec
 from app.schemas import ChartIn, ChartOut, MoveIn
-from app.services import audit, versions, workspaces
+from app.services import audit, usage, versions, workspaces
 from app.services.dashboards import chart_level, dashboards_using_chart
 
 router = APIRouter(prefix="/charts", tags=["charts"])
@@ -127,6 +127,7 @@ def create_chart(
 @router.get("/{chart_id}", response_model=ChartOut)
 def get_chart(chart_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     chart, level = _get(db, chart_id, user)
+    usage.track(db, user, "chart_view", chart.id)
     return _out(db, chart, user, level)
 
 

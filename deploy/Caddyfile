@@ -21,18 +21,23 @@
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Browsers only honour this over HTTPS, so it is harmless on a plain-HTTP test install
+		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
 
-	# Pages may be framed only by Lumen itself, except embedded dashboards, which the sites listed in
-	# EMBED_FRAME_ANCESTORS (space separated, e.g. "https://portal.company.ae") may show in an iframe
+	# Content security policy: scripts only from Lumen itself; pictures and web-page tiles may come from
+	# https sites (dashboard image and web tiles). Pages may be framed only by Lumen itself, except embedded
+	# dashboards, which the sites listed in EMBED_FRAME_ANCESTORS (space separated, e.g.
+	# "https://portal.company.ae") may show in an iframe.
 	@embed path /embed/*
 	@notembed not path /embed/*
 	header @notembed {
 		X-Frame-Options SAMEORIGIN
-		Content-Security-Policy "frame-ancestors 'self'"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
 	}
-	header @embed Content-Security-Policy "frame-ancestors 'self' {$EMBED_FRAME_ANCESTORS:}"
+	header @embed Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {$EMBED_FRAME_ANCESTORS:}"
 }
 
 {$SITE_ADDRESS::80} {
