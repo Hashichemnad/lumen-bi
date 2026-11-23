@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Database, FileSpreadsheet, Globe, Server } from "lucide-react";
+import { Cloud, Combine, Database, FileSpreadsheet, Globe, Server } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -8,6 +8,7 @@ import { get } from "../../lib/api";
 import type { Connection, Dataset } from "../../lib/types";
 import { CONNECTION_ICONS, CONNECTION_LABELS, StatusBadge, describeSchedule, formatNumber, sourceLabel } from "./common";
 import { RestConnectionModal, SalesforceConnectionModal } from "./ApiConnectionForms";
+import CombineModal from "./CombineModal";
 import { DatabaseConnectionModal, UploadModal } from "./ConnectionForms";
 
 export default function DataHome() {
@@ -18,7 +19,7 @@ export default function DataHome() {
     refetchInterval: (q) => (q.state.data?.some((d) => d.active_run) ? 2000 : false),
   });
   const connections = useQuery({ queryKey: ["connections"], queryFn: () => get<Connection[]>("/connections") });
-  const [adding, setAdding] = useState<"file" | "oracle" | "postgres" | "salesforce" | "rest" | null>(null);
+  const [adding, setAdding] = useState<"file" | "oracle" | "postgres" | "salesforce" | "rest" | "combine" | null>(null);
   const goTo = (c: Connection) => navigate(`/data/connections/${c.id}`);
 
   return (
@@ -33,6 +34,7 @@ export default function DataHome() {
           <Button variant="secondary" onClick={() => setAdding("postgres")}><Database size={16} /> PostgreSQL</Button>
           <Button variant="secondary" onClick={() => setAdding("salesforce")}><Cloud size={16} /> Salesforce</Button>
           <Button variant="secondary" onClick={() => setAdding("rest")}><Globe size={16} /> REST API</Button>
+          <Button variant="secondary" onClick={() => setAdding("combine")} disabled={!datasets.data?.some((d) => d.columns.length)}><Combine size={16} /> Join or combine datasets</Button>
         </div>
       </Card>
 
@@ -43,7 +45,7 @@ export default function DataHome() {
             <tr key={d.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/data/datasets/${d.id}`)}>
               <td className="px-4 py-3 font-medium">{d.name}</td>
               <td className="px-4 py-3 text-slate-600">
-                <div>{d.connection_name}</div>
+                <div>{d.kind === "source" ? d.connection_name : d.kind === "join" ? "Join" : "Union"}</div>
                 <div className="truncate text-xs text-slate-500">{sourceLabel(d)}</div>
               </td>
               <td className="px-4 py-3 tabular-nums">{d.current_version ? formatNumber(d.row_count) : "—"}</td>
@@ -77,6 +79,7 @@ export default function DataHome() {
       {connections.data?.length === 0 && <p className="text-sm text-slate-500">No connections yet.</p>}
 
       {adding === "file" && <UploadModal onClose={() => setAdding(null)} onDone={goTo} />}
+      {adding === "combine" && <CombineModal onClose={() => setAdding(null)} onSaved={(d) => navigate(`/data/datasets/${d.id}`)} />}
       {adding === "salesforce" && <SalesforceConnectionModal onClose={() => setAdding(null)} onSaved={goTo} />}
       {adding === "rest" && <RestConnectionModal onClose={() => setAdding(null)} onSaved={goTo} />}
       {(adding === "oracle" || adding === "postgres") && (

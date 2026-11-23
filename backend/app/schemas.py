@@ -233,19 +233,27 @@ class ColumnOut(BaseModel):
 class DatasetIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
-    connection_id: int
-    source: dict[str, str]
+    connection_id: int | None = None  # not used by joined/combined datasets
+    source: dict[str, Any]
     sync_mode: Literal["full", "incremental"] = "full"
     incremental_column: str | None = None
     primary_key: list[str] = []
     schedule: str | None = None  # 5-field cron, interpreted in the server's time zone
 
 
+class DatasetRef(BaseModel):
+    id: int
+    name: str
+
+
 class DatasetOut(ORM):
     id: int
     name: str
     description: str
-    connection_id: int
+    kind: str
+    connection_id: int | None
+    parents: list[DatasetRef] = []
+    dependents: list[DatasetRef] = []
     connection_name: str = ""
     connection_type: str = ""
     source: dict[str, Any]
@@ -285,3 +293,95 @@ class PreviewOut(BaseModel):
     columns: list[str]
     rows: list[list[Any]]
     version: int
+
+
+# ---------- semantic layer ----------
+class FieldOut(ORM):
+    id: int
+    name: str
+    kind: str
+    label: str
+    description: str
+    role: str
+    data_type: str
+    format: dict[str, Any]
+    default_agg: str
+    hidden: bool
+    formula: str | None
+    config: dict[str, Any]
+    is_aggregate: bool
+    error: str | None
+    missing: bool
+    position: int
+    used_by: list[str] = []
+
+
+class FieldCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    kind: Literal["calculated", "group", "bin"] = "calculated"
+    formula: str | None = None
+    config: dict[str, Any] = {}
+    label: str | None = None
+    description: str = ""
+    role: Literal["dimension", "measure"] | None = None
+    format: dict[str, Any] | None = None
+
+
+class FieldUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)  # calculated fields only
+    label: str | None = None
+    description: str | None = None
+    role: Literal["dimension", "measure"] | None = None
+    format: dict[str, Any] | None = None
+    default_agg: str | None = None
+    hidden: bool | None = None
+    formula: str | None = None
+    config: dict[str, Any] | None = None
+
+
+class FieldOrderIn(BaseModel):
+    ids: list[int]
+
+
+class FormulaCheckIn(BaseModel):
+    formula: str
+    field_name: str | None = None  # the field being edited (so it may not refer to itself)
+    kind: Literal["calculated", "group", "bin"] = "calculated"
+    config: dict[str, Any] = {}
+
+
+class FormulaCheckOut(BaseModel):
+    ok: bool
+    type: str | None = None
+    is_aggregate: bool = False
+    error: str | None = None
+    pos: int | None = None
+    sample: list[Any] = []
+
+
+class HierarchyIn(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    levels: list[str]
+
+
+class HierarchyOut(ORM):
+    id: int
+    name: str
+    levels: list[str]
+
+
+class ParameterIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str = ""
+    data_type: Literal["number", "integer", "string", "date", "boolean"] = "number"
+    default_value: Any = None
+    allowed_values: list[Any] = []
+
+
+class ParameterOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    data_type: str
+    default_value: Any
+    allowed_values: list[Any]

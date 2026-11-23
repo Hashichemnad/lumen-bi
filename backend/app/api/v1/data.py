@@ -25,10 +25,13 @@ from app.schemas import (
     ConnectionTypeOut,
     DatasetIn,
     DatasetOut,
+    DatasetRef,
     ObjectOut,
     PreviewOut,
     SyncRunOut,
 )
+from app.semantic import derived, model
+from app.semantic.formula import FormulaError
 from app.services import audit, snapshots
 from app.services.sync import (
     active_run,
@@ -198,6 +201,15 @@ def delete_connection(
     conn = _get_conn(db, connection_id)
     _can_edit(user, conn.owner_id)
     dataset_ids = [d.id for d in conn.datasets]
+    used_by = {
+        d.name for ds_id in dataset_ids for d in derived.dependents(db, ds_id) if d.id not in dataset_ids
+    }
+    if used_by:
+        raise HTTPException(
+            409,
+            f"Datasets from this connection are used by {', '.join(sorted(used_by))}. "
+            "Delete or change those first.",
+        )
     upload_dir = Path(conn.config["path"]).parent if conn.type == "file" and conn.config.get("path") else None
     name = conn.name
     db.delete(conn)
@@ -358,7 +370,13 @@ def _get_ds(db: Session, dataset_id: int) -> Dataset:
 
 def _ds_out(db: Session, ds: Dataset) -> DatasetOut:
     out = DatasetOut.model_validate(ds)
-    out.connection_name, out.connection_type = ds.connection.name, ds.connection.type
+    if ds.connection is not None:
+        out.connection_name, out.connection_type = ds.connection.name, ds.connection.type
+    for pid in derived.parents(ds.source or {}):
+        parent = db.get(Dataset, pid)
+        if parent:
+            out.parents.append(DatasetRef(id=parent.id, name=parent.name))
+    out.dependents = [DatasetRef(id=d.id, name=d.name) for d in derived.dependents(db, ds.id)]
     owner = db.get(User, ds.owner_id) if ds.owner_id else None
     out.owner_name = owner.name or owner.email if owner else ""
     run = active_run(db, ds.id)
@@ -366,10 +384,26 @@ def _ds_out(db: Session, ds: Dataset) -> DatasetOut:
     return out
 
 
-def _validate_dataset(db: Session, body: DatasetIn) -> Connection:
+def _validate_dataset(db: Session, body: DatasetIn, self_id: int | None = None) -> Connection | None:
+    kind = derived.kind_of(body.source)
+    if kind in derived.DERIVED_KINDS:
+        # Built from other datasets: always a full rebuild, refreshed when a parent syncs
+        try:
+            body.source = derived.validate(db, body.source, self_id=self_id)
+        except ConnectorError as exc:
+            raise _bad(str(exc)) from exc
+        body.connection_id, body.sync_mode, body.incremental_column = None, "full", None
+        body.primary_key, body.schedule = [], None
+        return None
+    if body.connection_id is None:
+        raise _bad("Choose a connection")
     conn = _get_conn(db, body.connection_id)
     cls = connector_class(conn.type)
-    source = {k: v.strip() for k, v in body.source.items() if k in {"object", "sql"} and v and v.strip()}
+    source = {
+        k: v.strip()
+        for k, v in body.source.items()
+        if k in {"object", "sql"} and isinstance(v, str) and v.strip()
+    }
     if len(source) != 1:
         raise _bad("Choose a table/sheet or enter a SQL query")
     if "sql" in source and not cls.supports_sql:
@@ -416,6 +450,7 @@ def create_dataset(
     ds = Dataset(
         name=body.name.strip(),
         description=body.description,
+        kind=derived.kind_of(body.source),
         connection_id=body.connection_id,
         source=body.source,
         sync_mode=body.sync_mode,
@@ -457,9 +492,11 @@ def update_dataset(
 ):
     ds = _get_ds(db, dataset_id)
     _can_edit(user, ds.owner_id)
-    if body.connection_id != ds.connection_id:
+    if derived.kind_of(body.source) != ds.kind:
+        raise _bad("A dataset cannot change between a source, a join and a union")
+    if ds.kind == "source" and body.connection_id != ds.connection_id:
         raise _bad("A dataset cannot be moved to another connection")
-    _validate_dataset(db, body)
+    _validate_dataset(db, body, self_id=ds.id)
     reshaped = (
         body.source != ds.source
         or body.incremental_column != ds.incremental_column
@@ -496,6 +533,14 @@ def delete_dataset(
 ):
     ds = _get_ds(db, dataset_id)
     _can_edit(user, ds.owner_id)
+    used_by = derived.dependents(db, ds.id)
+    if used_by:
+        names = ", ".join(f'"{d.name}"' for d in used_by)
+        raise HTTPException(
+            409,
+            f"{names} {'is' if len(used_by) == 1 else 'are'} built from this dataset. "
+            "Delete or change that first.",
+        )
     name = ds.name
     db.delete(ds)
     audit.record(
@@ -547,5 +592,16 @@ def preview(
     path = snapshots.snapshot_path(ds.id, ds.current_version)
     if not path:
         raise HTTPException(409, "This dataset has no data yet. Run a sync first.")
-    columns, rows = snapshots.preview(path, limit)
-    return PreviewOut(columns=columns, rows=rows, version=ds.current_version)
+    # Row-level calculated, group and bin fields are shown too (aggregates need a chart: milestone 8)
+    ctx = model.build_context(db, ds.id)
+    extra = []
+    for f in model.fields_of(db, ds.id):
+        if f.kind != "column" and not f.error and not f.is_aggregate:
+            try:
+                extra.append((f.name, model.compile_field(ctx, f.name).sql))
+            except FormulaError:
+                continue
+    columns, rows = snapshots.preview(path, limit, extra)
+    return PreviewOut(
+        columns=columns, rows=[[model.jsonable(v) for v in r] for r in rows], version=ds.current_version
+    )
