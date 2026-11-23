@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_admin
 from app.db import get_db
 from app.models import Group, User, user_groups
+from app.query import rls
 from app.schemas import GroupIn, GroupMembersIn, GroupOut
 from app.services import audit
 
@@ -81,6 +82,7 @@ def delete_group(
 ):
     group = _get(db, group_id)
     name = group.name
+    rls.forget_principal(db, "group", group_id)
     db.delete(group)
     audit.record(
         db,

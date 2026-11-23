@@ -34,7 +34,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    # Cached query results expire and are evicted first; queued jobs (no expiry) are never evicted
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "volatile-lru"]
     volumes:
       - redis-data:/data
     healthcheck:

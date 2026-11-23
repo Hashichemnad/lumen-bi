@@ -12,6 +12,7 @@ import { RunBadge, StatusBadge, describeSchedule, formatNumber, sourceLabel } fr
 import CombineModal from "./CombineModal";
 import DatasetForm from "./DatasetForm";
 import ModelTab from "./ModelTab";
+import SecurityTab from "./SecurityTab";
 
 function cell(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -30,7 +31,7 @@ export default function DatasetPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, hasRole } = useAuth();
-  const [tab, setTab] = useState<"preview" | "model" | "history">("preview");
+  const [tab, setTab] = useState<"preview" | "model" | "security" | "history">("preview");
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
 
@@ -126,7 +127,7 @@ export default function DatasetPage() {
       {d.source.sql && <pre className="mb-4 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{d.source.sql}</pre>}
 
       <div className="mb-3 flex gap-1 border-b border-slate-200">
-        {(["preview", "model", "history"] as const).map((t) => (
+        {(["preview", "model", "security", "history"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx("-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize",
               tab === t ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
@@ -141,6 +142,11 @@ export default function DatasetPage() {
             <p className="p-6 text-center text-sm text-slate-500">{d.active_run ? "Syncing… the preview appears when it finishes." : "No data yet. Run a sync."}</p>
           ) : (
             <>
+              {preview.data?.restricted && (
+                <p className="border-b border-slate-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+                  Row-level security applies to you: only the rows you may see are shown.
+                </p>
+              )}
               <div className="max-h-[480px] overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-slate-50">
@@ -162,6 +168,8 @@ export default function DatasetPage() {
       )}
 
       {tab === "model" && <ModelTab datasetId={d.id} canEdit={canEdit} />}
+
+      {tab === "security" && <SecurityTab datasetId={d.id} canEdit={canEdit} />}
 
       {tab === "history" && (
         <Card>

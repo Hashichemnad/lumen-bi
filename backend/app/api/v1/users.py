@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_admin
 from app.db import get_db
 from app.models import Group, Role, User
+from app.query import rls
 from app.schemas import Page, UserCreate, UserImportResult, UserOut, UserUpdate
 from app.services import audit
 from app.services.users import (
@@ -143,6 +144,7 @@ def delete_user(
         raise HTTPException(status.HTTP_409_CONFLICT, "You cannot delete your own account")
     ensure_not_last_admin(db, user)
     email = user.email
+    rls.forget_principal(db, "user", user_id)
     db.delete(user)
     audit.record(
         db,

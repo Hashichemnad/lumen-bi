@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     # Let API connections call localhost/link-local addresses (development with tools/fake_sources.py only)
     allow_local_api_urls: bool = False
 
+    # Query engine
+    query_max_rows: int = 50_000  # rows a chart/table query may return
+    export_max_rows: int = 1_000_000
+    query_timeout_seconds: int = 60
+    duckdb_memory_limit: str = ""  # e.g. "8GB"; empty = DuckDB default (80% of RAM)
+    duckdb_threads: int = 0  # 0 = all cores
+    # Result cache: "redis" (uses redis_url), "memory" (per process), "off"
+    cache_backend: str = "redis"
+    cache_seconds: int = 3600
+
     admin_email: str = "admin@example.com"
     admin_password: str = "ChangeMe123!"
     admin_name: str = "Administrator"

@@ -181,6 +181,94 @@ export interface Preview {
   columns: string[];
   rows: unknown[][];
   version: number;
+  restricted: boolean;
+}
+
+export interface RlsRule {
+  id: number;
+  dataset_id: number;
+  name: string;
+  kind: "attribute" | "entitlement";
+  config: {
+    field: string;
+    attribute?: string;
+    ignore_case?: boolean;
+    dataset?: number;
+    user_column?: string;
+    value_column?: string;
+    match?: string;
+    all_value?: string | null;
+  };
+  exempt_groups: number[];
+  exempt_group_names: string[];
+  enabled: boolean;
+  description: string;
+  summary: string;
+}
+
+export interface Principal {
+  id: number;
+  name: string;
+  email?: string;
+  role?: string;
+}
+
+export interface DatasetAccess {
+  everyone: boolean;
+  user_ids: number[];
+  group_ids: number[];
+  users: Principal[];
+  groups: Principal[];
+}
+
+export interface DatasetSecurity {
+  rules: RlsRule[];
+  inherited: { rule: RlsRule; dataset: DatasetRef; mapped: boolean }[];
+  access: DatasetAccess;
+  attributes: string[];
+}
+
+export interface RuleCheck {
+  rule_id: number;
+  name: string;
+  inherited_from: DatasetRef | null;
+  status: "applies" | "exempt" | "all" | "blocked";
+  values: unknown[];
+  value_count: number;
+  reason: string;
+}
+
+export interface SecurityCheck {
+  user: Principal;
+  has_access: boolean;
+  bypass: boolean;
+  rules: RuleCheck[];
+  visible_rows: number | null;
+  total_rows: number;
+}
+
+export interface QueryColumn {
+  key: string;
+  label: string;
+  field: string;
+  role: "dimension" | "measure";
+  type: string;
+  format: FieldFormat;
+  agg: string | null;
+  grain: string | null;
+  part: string | null;
+  calc: string | null;
+}
+
+export interface QueryResult {
+  columns: QueryColumn[];
+  rows: unknown[][];
+  totals: unknown[] | null;
+  truncated: boolean;
+  row_count: number;
+  restricted: boolean;
+  cached: boolean;
+  ms: number;
 }
 
 // ---------- model ----------

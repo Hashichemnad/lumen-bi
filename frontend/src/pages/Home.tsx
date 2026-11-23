@@ -9,7 +9,7 @@ const ROADMAP = [
   { name: "Data connections: files, Oracle, PostgreSQL, scheduled sync", done: true },
   { name: "Salesforce and REST API connections", done: true },
   { name: "Data modelling and calculated fields", done: true },
-  { name: "Query engine with row-level security", done: false },
+  { name: "Query engine with row-level security", done: true },
   { name: "Chart builder", done: false },
   { name: "Interactive dashboards", done: false },
   { name: "Exports, email reports and alerts", done: false },

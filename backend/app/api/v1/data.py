@@ -17,6 +17,7 @@ from app.connectors.files import FORMATS
 from app.core.config import get_settings
 from app.db import get_db
 from app.models import Connection, Dataset, Role, SyncRun, User
+from app.query import duck, engine, rls
 from app.schemas import (
     ColumnOut,
     ConnectionIn,
@@ -31,7 +32,7 @@ from app.schemas import (
     SyncRunOut,
 )
 from app.semantic import derived, model
-from app.semantic.formula import FormulaError
+from app.semantic.formula import FormulaError, quote_ident
 from app.services import audit, snapshots
 from app.services.sync import (
     active_run,
@@ -541,6 +542,12 @@ def delete_dataset(
             f"{names} {'is' if len(used_by) == 1 else 'are'} built from this dataset. "
             "Delete or change that first.",
         )
+    guarded = rls.datasets_using_as_access_table(db, ds.id)
+    if guarded:
+        names = ", ".join(f'"{d.name}"' for d in guarded)
+        raise HTTPException(
+            409, f"This dataset is the access table for row-level security on {names}. Change that first."
+        )
     name = ds.name
     db.delete(ds)
     audit.record(
@@ -585,23 +592,28 @@ def preview(
     dataset_id: int,
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    _: User = Depends(require_creator),
+    user: User = Depends(require_creator),
 ):
-    """First rows of the live snapshot. Creators/admins only until row-level security (milestone 7)."""
+    """First rows of the live snapshot, with row-level security applied (Admins see every row)."""
     ds = _get_ds(db, dataset_id)
-    path = snapshots.snapshot_path(ds.id, ds.current_version)
-    if not path:
+    if not snapshots.snapshot_path(ds.id, ds.current_version):
         raise HTTPException(409, "This dataset has no data yet. Run a sync first.")
-    # Row-level calculated, group and bin fields are shown too (aggregates need a chart: milestone 8)
-    ctx = model.build_context(db, ds.id)
-    extra = []
+    try:
+        with_base, params, ctx, restricted = engine.base_sql(db, ds, rls.principal_for(db, user))
+    except engine.QueryError as exc:
+        raise _bad(exc.message) from exc
+    # Row-level calculated, group and bin fields are shown too (aggregates need a chart)
+    extra = ""
     for f in model.fields_of(db, ds.id):
         if f.kind != "column" and not f.error and not f.is_aggregate:
             try:
-                extra.append((f.name, model.compile_field(ctx, f.name).sql))
+                extra += f", {model.compile_field(ctx, f.name).sql} AS {quote_ident(f.name)}"
             except FormulaError:
                 continue
-    columns, rows = snapshots.preview(path, limit, extra)
+    columns, rows = duck.run(f"{with_base} SELECT *{extra} FROM base LIMIT {int(limit)}", params)
     return PreviewOut(
-        columns=columns, rows=[[model.jsonable(v) for v in r] for r in rows], version=ds.current_version
+        columns=columns,
+        rows=[[model.jsonable(v) for v in r] for r in rows],
+        version=ds.current_version,
+        restricted=restricted,
     )
