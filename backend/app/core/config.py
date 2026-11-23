@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Dubai"  # schedules are interpreted in this time zone
     max_upload_mb: int = 200
     snapshots_to_keep: int = 3
+    # Let API connections call localhost/link-local addresses (development with tools/fake_sources.py only)
+    allow_local_api_urls: bool = False
 
     admin_email: str = "admin@example.com"
     admin_password: str = "ChangeMe123!"

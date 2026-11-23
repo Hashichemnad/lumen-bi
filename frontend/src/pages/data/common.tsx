@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Database, FileSpreadsheet, Server } from "lucide-react";
+import { Cloud, Database, FileSpreadsheet, Globe, Server } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Badge } from "../../components/ui";
@@ -10,12 +10,16 @@ export const CONNECTION_ICONS: Record<string, ReactNode> = {
   file: <FileSpreadsheet size={20} />,
   oracle: <Server size={20} />,
   postgres: <Database size={20} />,
+  salesforce: <Cloud size={20} />,
+  rest: <Globe size={20} />,
 };
 
 export const CONNECTION_LABELS: Record<string, string> = {
   file: "Uploaded file",
   oracle: "Oracle",
   postgres: "PostgreSQL",
+  salesforce: "Salesforce",
+  rest: "REST API",
 };
 
 export function useDataSettings() {

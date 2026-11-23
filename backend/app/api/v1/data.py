@@ -376,8 +376,9 @@ def _validate_dataset(db: Session, body: DatasetIn) -> Connection:
         raise _bad("This connection does not support SQL queries")
     body.source = source
     if body.sync_mode == "incremental":
-        if not cls.supports_incremental:
-            raise _bad("This connection only supports full syncs")
+        reason = cls.incremental_ready(conn.config or {})
+        if reason:
+            raise _bad(reason)
         if not body.incremental_column:
             raise _bad("Choose the column that tells which rows are new or changed (e.g. a modified date)")
     else:

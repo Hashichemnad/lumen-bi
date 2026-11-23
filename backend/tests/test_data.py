@@ -95,7 +95,7 @@ def test_csv_upload_sync_preview(creator_client):
     assert conn["type"] == "file" and conn["config"]["filename"] == "branches.csv"
     assert "path" in conn["config"]
     objects = creator_client.get(f"{API}/connections/{conn['id']}/objects").json()
-    assert objects == [{"name": "data", "kind": "file", "schema": None}]
+    assert objects == [{"name": "data", "kind": "file", "schema": None, "label": None}]
 
     ds = make_dataset(creator_client, conn["id"])
     assert ds["last_status"] == "success" and ds["row_count"] == 50 and ds["current_version"] == 1

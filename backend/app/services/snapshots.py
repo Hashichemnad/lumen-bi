@@ -17,7 +17,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from app.connectors.base import ColumnInfo, lumen_type
+from app.connectors.base import DELETED_COLUMN, ColumnInfo, lumen_type
 from app.core.config import get_settings
 
 VERSION_DIR = re.compile(r"^v(\d+)$")
@@ -109,20 +109,28 @@ def write_snapshot(
         try:
             # union_by_name: batches may disagree on types (e.g. an all-null batch); DuckDB unifies them
             new = f"read_parquet({_lit(parts / '*.parquet')}, union_by_name = true)"
+            names = [r[0] for r in con.execute(f"DESCRIBE SELECT * FROM {new}").fetchall()]
+            # Rows the source reports as deleted: never kept, but their keys still remove older versions
+            live = (
+                f"(SELECT * EXCLUDE ({_q(DELETED_COLUMN)}) FROM {new} "
+                f"WHERE NOT coalesce({_q(DELETED_COLUMN)}, false))"
+                if DELETED_COLUMN in names
+                else new
+            )
             if merge_with is not None:
                 old = f"read_parquet({_lit(merge_with)})"
                 keys = [k for k in (primary_key or []) if k]
                 if keys:
                     using = ", ".join(_q(k) for k in keys)
                     query = (
-                        f"SELECT * FROM {new} UNION ALL BY NAME "
+                        f"SELECT * FROM {live} UNION ALL BY NAME "
                         f"SELECT * FROM (SELECT * FROM {old} "
                         f"ANTI JOIN (SELECT {using} FROM {new}) USING ({using}))"
                     )
                 else:
-                    query = f"SELECT * FROM {old} UNION ALL BY NAME SELECT * FROM {new}"
+                    query = f"SELECT * FROM {old} UNION ALL BY NAME SELECT * FROM {live}"
             else:
-                query = f"SELECT * FROM {new}"
+                query = f"SELECT * FROM {live}"
             con.execute(f"COPY ({query}) TO {_lit(out)} (FORMAT parquet, COMPRESSION zstd)")
         finally:
             con.close()
@@ -155,6 +163,8 @@ def delete_all(dataset_id: int) -> None:
 def preview(path: Path, limit: int = 100) -> tuple[list[str], list[list[Any]]]:
     con = duckdb.connect()
     try:
+        # Show times in the organisation's time zone, whatever the server's own zone is
+        con.execute("SET TimeZone = ?", [get_settings().timezone])
         cur = con.execute(f"SELECT * FROM read_parquet({_lit(path)}) LIMIT {int(limit)}")
         names = [d[0] for d in cur.description]
         return names, [list(r) for r in cur.fetchall()]
