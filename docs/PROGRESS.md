@@ -13,9 +13,11 @@
 | 7 | Query engine + row-level security | Done |
 | 8 | Chart builder UI | Done |
 | 9 | Dashboards UI | Done |
-| 10 | Exports, subscriptions, alerts, embedding | Next |
-| 11 | AI features | — |
-| 12 | Admin and hardening | — |
+| 10 | More chart types, dashboard sections, exports | In progress |
+| 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | — |
+| 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | — |
+| 13 | AI and MCP server | — |
+| 14 | Admin and hardening | — |
 
 ## What exists (milestones 1–2)
 
@@ -249,13 +251,21 @@ Known limits (by design for now):
   and a note, 3 filters (incl. one linked across datasets), uses filters, cross-filters, drills, views
   data, reopens a copied link with the filter kept, shares; a UAE-only viewer sees UAE rows; phone view.
 
-## Next: milestone 10 (exports, subscriptions, alerts, embedding)
+## Next: milestone 10 (more chart types, sections, exports)
 
-- Dashboard export to PDF and PNG (server-side rendering with headless Chromium in a worker), Excel export.
-- Email subscriptions: per recipient (their own RLS), schedule, format (PDF/PNG/link), filters kept.
-- Data-driven alerts on a chart measure (threshold, change), checked after syncs or on a schedule.
-- Signed embedding: embed a dashboard in another site with a signed token (user attributes for RLS),
-  allowed origins; comments on dashboards.
+Plan agreed with the owner on 23 Nov 2026 (see SPEC milestones 10–14):
+- Chart types: pyramid (+stacked), parallel coordinates, radar, time axis (timeline, time bar, time combo),
+  calendar heat map, Gantt, gauge / polar gauge / flat gauge, bullet, rating, horizontal/vertical dot plots,
+  waterfall (+stacked), funnel, Origami (horizontal folded funnel: blocks sized by value joined by folds),
+  Sankey. Same rules as the other charts (one value axis, palette in fixed order, labels only when they fit).
+- Geo Map: admins upload boundary files (GeoJSON) for emirates, districts or sales territories.
+- Dashboard sections (KPI dashboards): section headers (KPI id, name, description), a navigator on the right
+  that scrolls to a section and highlights the current one, links to a section, page breaks in PDF.
+- Export dashboards to PDF and PNG (headless Chromium in the worker) and chart data to Excel.
+
+Owner decisions: versions keep only the last 2 (milestone 12). Data entry (write-back) is optional, decided
+later (milestone 14). MCP = Lumen as an MCP server for Claude (milestone 13). UI must be attractive and very
+easy to use; show designs before building (milestone 11).
 
 ## Open questions for the owner
 

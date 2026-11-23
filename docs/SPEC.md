@@ -135,8 +135,22 @@ cross-filter < 1 s; 20 concurrent users without slowdown, load-tested to 50.
 5. Salesforce and REST connectors
 6. Semantic layer: fields, formats, calculated fields, joins, hierarchies, parameters, groups, bins
 7. Query engine + RLS: compiler, table calcs, caching, preview-as-user, security test suite
-8. Chart builder UI (incl. Arabic/RTL)
+8. Chart builder UI
 9. Dashboards UI: grid, filters, cross-filtering, drill, tabs, device layouts, sharing
-10. Exports, subscriptions, alerts, embedding
-11. AI features
-12. Admin and hardening: usage analytics, settings, backup/restore, OWASP review, load test, guides
+10. More chart types + exports: pyramid (+stacked), parallel coordinates, radar, time axis (timeline, time
+    bar, time combo with zoom), calendar heat map, Gantt, gauges (gauge, polar, flat), bullet, rating, dot
+    plots, waterfall (+stacked), funnel, Origami, Sankey; Geo Map with uploaded boundary files (emirates,
+    districts, territories); dashboard sections with a section navigator (KPI dashboards); dashboard export
+    to PDF/PNG and data to Excel
+11. UI/UX redesign: new design for every screen and dashboards, three themes (Classic, Advanced dark,
+    Tableau-style), Arabic + English with RTL, workspaces with permissions, Hijri calendar / UAE weekend /
+    fiscal year settings, TV/kiosk and presentation modes
+12. Subscriptions, alerts, embedding and governance: per-recipient email subscriptions, data-driven alerts,
+    Teams/email/WhatsApp notifications, signed embedding, comments and chart annotations, column masking
+    (PII), KPI goals and scorecards (targets, status in section headers), data quality and freshness checks,
+    versions (last 2 kept) with roll back
+13. AI + MCP: Ask Data (English/Arabic), auto-dashboard, explain, forecasting, anomaly alerts, formula helper,
+    AI daily digest; Lumen MCP server (remote, OAuth per user, read-only, RLS, audited) so Claude and other
+    MCP clients can search datasets and dashboards and run queries
+14. Admin and hardening: usage analytics, settings, backup/restore, lineage and impact view, data entry
+    (write-back of targets and comments, if wanted), OWASP review, load test, guides
