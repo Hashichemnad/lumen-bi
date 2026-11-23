@@ -1,6 +1,7 @@
 """All ORM models. Import from here so Alembic sees every table."""
 
 from app.models.audit import AuditLog
+from app.models.boundary import MapBoundary
 from app.models.chart import Chart
 from app.models.dashboard import Dashboard, DashboardFavorite, DashboardShare
 from app.models.data import Connection, Dataset, SyncRun
@@ -22,6 +23,7 @@ __all__ = [
     "Group",
     "Hierarchy",
     "IdentityProvider",
+    "MapBoundary",
     "Parameter",
     "PasswordResetToken",
     "RlsRule",

@@ -222,13 +222,45 @@ function NumberTiles({ cfg, result }: Pick<Props, "cfg" | "result">) {
   );
 }
 
+// ------------------------------------------------------------------ rating (stars)
+function Stars({ share }: { share: number }) {
+  const pct = Math.max(0, Math.min(1, share)) * 100;
+  const row = (cls: string) => <span className={cls}>{"★★★★★"}</span>;
+  return (
+    <span className="relative inline-block text-2xl leading-none tracking-wide" aria-hidden="true">
+      {row("text-slate-200")}
+      <span className="absolute inset-0 overflow-hidden" style={{ width: `${pct}%` }}>{row("text-amber-500")}</span>
+    </span>
+  );
+}
+
+function RatingView({ cfg, result }: Pick<Props, "cfg" | "result">) {
+  const m = result.columns.findIndex((c) => c.role === "measure");
+  const d = result.columns.findIndex((c) => c.role === "dimension");
+  const max = cfg.options.ratingMax || 5;
+  if (m < 0) return <p className="text-sm text-slate-500">Add a measure.</p>;
+  const col = result.columns[m];
+  const items = d >= 0 ? result.rows.map((r) => ({ name: formatValue(r[d], result.columns[d]), value: r[m] as number | null })) : [{ name: col.label, value: (result.totals?.[m] ?? result.rows[0]?.[m]) as number | null }];
+  return (
+    <div className="h-full space-y-3 overflow-auto py-2">
+      {items.map((it, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <span className="w-40 truncate text-sm text-slate-700">{it.name}</span>
+          <Stars share={(it.value ?? 0) / max} />
+          <span className="text-sm font-semibold tabular-nums text-slate-900" aria-label={`${it.value ?? 0} out of ${max}`}>{it.value === null ? "—" : `${formatValue(it.value, { ...col, format: { type: "number", decimals: 1 } })} / ${max}`}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ the view
 const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, type, result, identity, height = 420, stale, onMark, onSort }, ref) {
   const [built, setBuilt] = useState<Built | null>(null);
   const [error, setError] = useState("");
   const chart = useRef<EChartHandle>(null);
   useImperativeHandle(ref, () => ({ png: () => chart.current?.png() ?? null }));
-  const usesECharts = !["table", "kpi"].includes(type);
+  const usesECharts = !["table", "kpi", "rating"].includes(type);
 
   useEffect(() => {
     if (!usesECharts) return;
@@ -244,13 +276,15 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
   const empty = result.rows.length === 0;
   const pivot = type === "table" && cfg.shelves.columns.some((p) => p.role === "dimension") && result.columns.some((c) => c.role === "measure");
   return (
-    <div className={clsx("flex h-full flex-col transition-opacity", stale && "opacity-50")}>
+    <div data-state={stale || (usesECharts && !built && !error) ? "loading" : "ready"} className={clsx("flex h-full flex-col transition-opacity", stale && "opacity-50")}>
       {empty ? (
         <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>No data for these fields and filters.</div>
       ) : type === "table" ? (
         <div style={{ height }}>{pivot ? <PivotTable cfg={cfg} result={result} onMark={onMark} /> : <FlatTable cfg={cfg} result={result} onMark={onMark} onSort={onSort} />}</div>
       ) : type === "kpi" ? (
         <div style={{ height }}><NumberTiles cfg={cfg} result={result} /></div>
+      ) : type === "rating" ? (
+        <div style={{ height }}><RatingView cfg={cfg} result={result} /></div>
       ) : error ? (
         <p className="p-6 text-sm text-red-700">{error}</p>
       ) : built && Object.keys(built.option).length ? (

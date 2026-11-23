@@ -510,6 +510,7 @@ class DashboardSharing(BaseModel):
 
 class DashboardQueryIn(BaseModel):
     item: str
+    format: Literal["csv", "xlsx"] = "csv"  # exports only
     filters: list[dict[str, Any]] = []
     params: dict[str, Any] = {}
     drill: list[dict[str, Any]] = []

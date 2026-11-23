@@ -349,3 +349,22 @@ def test_viewers_cannot_create_dashboards(world):
         f"{API}/dashboards", json={"name": "x", "config": config(world["chart"]["id"])}
     )
     assert r.status_code == 403
+
+
+def test_sections(world):
+    cfg = config(world["chart"]["id"])
+    cfg["tabs"][0]["items"].append(
+        {
+            "id": "s1",
+            "kind": "section",
+            "code": "KPI-07",
+            "title": "Tickets completed on time",
+            "text": "Share of tickets closed within the SLA",
+            "desktop": {"x": 0, "y": 10, "w": 12, "h": 2},
+        }
+    )
+    r = world["owner"].put(f"{API}/dashboards/{world['dash']['id']}", json={"name": "Sales", "config": cfg})
+    assert r.status_code == 200, r.text
+    section = r.json()["config"]["tabs"][0]["items"][-1]
+    assert section["code"] == "KPI-07" and section["title"] == "Tickets completed on time"
+    assert tile(world["owner"], world, item="s1").status_code == 404  # sections hold no data

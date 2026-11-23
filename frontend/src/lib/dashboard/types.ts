@@ -10,8 +10,10 @@ export interface Box {
 
 export interface Tile {
   id: string;
-  kind: "chart" | "text" | "image" | "web";
+  kind: "chart" | "text" | "image" | "web" | "section";
   chart_id?: number;
+  /** sections: e.g. a KPI id such as "KPI-07" */
+  code?: string;
   title?: string;
   show_title?: boolean;
   text?: string;

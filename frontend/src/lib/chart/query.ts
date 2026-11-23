@@ -56,7 +56,7 @@ export function buildQuery(cfg: ChartConfig, type: ChartType, extraFilters: Spec
   if (cfg.sort && [...dims, ...measures].some((p) => p.id === cfg.sort!.pill)) {
     spec.sort = [{ key: cfg.sort.pill, dir: cfg.sort.dir }];
   }
-  if (cfg.options.totals || type === "kpi") spec.totals = true;
+  if (cfg.options.totals || ["kpi", "gauge", "polar_gauge", "flat_gauge", "rating"].includes(type)) spec.totals = true;
   if (Object.keys(cfg.params).length) spec.params = cfg.params;
   return spec;
 }

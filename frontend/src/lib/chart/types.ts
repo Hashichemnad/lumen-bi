@@ -8,7 +8,10 @@ export type CalcType = "running_total" | "pct_total" | "difference" | "pct_chang
 export type ShelfName = "columns" | "rows" | "color" | "size" | "label" | "tooltip" | "detail";
 export type ChartType =
   | "table" | "kpi" | "bar" | "stacked" | "line" | "area" | "combo" | "donut" | "scatter" | "heatmap"
-  | "treemap" | "map";
+  | "treemap" | "map"
+  | "pyramid" | "stacked_pyramid" | "parallel" | "radar" | "timeline" | "time_bar" | "time_combo" | "calendar"
+  | "gantt" | "gauge" | "polar_gauge" | "flat_gauge" | "bullet" | "rating" | "dot_h" | "dot_v" | "waterfall"
+  | "stacked_waterfall" | "funnel" | "origami" | "sankey" | "geomap";
 
 export interface TableCalc {
   type: CalcType;
@@ -74,6 +77,16 @@ export interface ChartOptions {
   colorScale?: boolean; // tables: shade measure cells
   percentStack?: boolean; // stacked bars as 100%
   smooth?: boolean;
+  /** gauges: the maximum when no target measure is given */
+  gaugeMax?: number;
+  /** rating: the value that means full marks (default 5) */
+  ratingMax?: number;
+  /** waterfall, origami, funnel: show the total */
+  showTotal?: boolean;
+  /** funnel, origami: order by value (default) or keep the query's order */
+  order?: "value" | "data";
+  /** geo map: uploaded boundary file id */
+  boundary?: number;
 }
 
 export interface ChartConfig {

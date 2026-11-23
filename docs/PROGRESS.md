@@ -13,8 +13,8 @@
 | 7 | Query engine + row-level security | Done |
 | 8 | Chart builder UI | Done |
 | 9 | Dashboards UI | Done |
-| 10 | More chart types, dashboard sections, exports | In progress |
-| 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | — |
+| 10 | More chart types, dashboard sections, exports | Done |
+| 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Next |
 | 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | — |
 | 13 | AI and MCP server | — |
 | 14 | Admin and hardening | — |
@@ -251,21 +251,45 @@ Known limits (by design for now):
   and a note, 3 filters (incl. one linked across datasets), uses filters, cross-filters, drills, views
   data, reopens a copied link with the filter kept, shares; a UAE-only viewer sees UAE rows; phone view.
 
-## Next: milestone 10 (more chart types, sections, exports)
+## Plan agreed with the owner (23 Nov 2026)
 
-Plan agreed with the owner on 23 Nov 2026 (see SPEC milestones 10–14):
-- Chart types: pyramid (+stacked), parallel coordinates, radar, time axis (timeline, time bar, time combo),
-  calendar heat map, Gantt, gauge / polar gauge / flat gauge, bullet, rating, horizontal/vertical dot plots,
-  waterfall (+stacked), funnel, Origami (horizontal folded funnel: blocks sized by value joined by folds),
-  Sankey. Same rules as the other charts (one value axis, palette in fixed order, labels only when they fit).
-- Geo Map: admins upload boundary files (GeoJSON) for emirates, districts or sales territories.
-- Dashboard sections (KPI dashboards): section headers (KPI id, name, description), a navigator on the right
-  that scrolls to a section and highlights the current one, links to a section, page breaks in PDF.
-- Export dashboards to PDF and PNG (headless Chromium in the worker) and chart data to Excel.
+See SPEC milestones 10–14. Owner decisions: versions keep only the last 2 (milestone 12); data entry
+(write-back) optional, decided later (milestone 14); MCP = Lumen as an MCP server for Claude (milestone 13);
+the UI must be attractive and very easy to use, with designs shown before building (milestone 11).
 
-Owner decisions: versions keep only the last 2 (milestone 12). Data entry (write-back) is optional, decided
-later (milestone 14). MCP = Lumen as an MCP server for Claude (milestone 13). UI must be attractive and very
-easy to use; show designs before building (milestone 11).
+## What exists (milestone 10)
+
+- 21 more chart types (`frontend/src/lib/chart/build2.ts`): pyramid, stacked pyramid, parallel
+  coordinates, radar, timeline / time bars / time combo (time axis + zoom slider), calendar heat map, Gantt
+  (custom series), gauge, ring (polar), progress bar, bullet, rating (React stars), dots across / up,
+  waterfall, stacked waterfall, funnel (labels beside stages), Origami (custom series: blocks sized by value
+  joined by folds), Sankey, Geo map (uploaded boundaries). Show Me grouped (Tables, Bars, Lines, Dates &
+  times, Gauges, Circles & dots, Grids, Maps, Pipelines) with per-type requirements; new options (gauge
+  maximum, rating full marks, totals, order, map).
+- Map boundaries: `map_boundaries` (migration `0008`), files in `DATA_DIR/boundaries/`, API
+  `app/api/v1/boundaries.py` (list/read for everyone, upload Creator+, rename / name property / delete by
+  uploader or admin, refused while a chart uses it; GeoJSON validated, points dropped, 25 MB). Data → Maps
+  page with preview.
+- Dashboard sections: tile kind `section` (ID, name, description); navigator on the right with
+  scroll-spy, phone picker, links to `#section-<id>`.
+- Exports: dashboards to PDF (A4 landscape, page per section, page numbers, filters listed) and PNG via
+  headless Chromium (`app/services/render.py`, Celery task `lumen.render_dashboard`, inline in
+  development); the browser opens a print view as the user (5-minute session cookie, their RLS) and waits
+  for `window.__lumenReady`. Caddy has an internal listener `:8081` for the renderer
+  (`RENDER_BASE_URL`); Chromium is installed in the backend image. Excel export (`app/services/excel.py`,
+  formats kept, formula-safe) for queries and dashboard tiles; CSV/Excel buttons in the builder, view data
+  and tile menus.
+- Tests: 319 backend tests (sections, boundaries, Excel formats, render endpoint permissions and errors).
+  Browser test: uploads a map, builds a 5-section KPI dashboard with all 21 new types, checks the
+  navigator (click, scroll-spy, link to a section, phone picker), exports PDF (7 pages) and PNG.
+
+## Next: milestone 11 (UI/UX redesign)
+
+- Design first: screen designs for home, data, chart builder and dashboards in the three themes (Classic,
+  Advanced dark, Tableau-style) for the owner to choose from before building.
+- Theme system (CSS variables; per-user choice, admin default; dark chart palette selected for the dark
+  surface), Arabic + English with RTL, workspaces with permissions, Hijri calendar / UAE weekend / fiscal
+  year settings, TV/kiosk and presentation modes.
 
 ## Open questions for the owner
 

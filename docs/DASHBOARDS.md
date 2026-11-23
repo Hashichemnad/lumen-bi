@@ -9,6 +9,10 @@
   (https addresses only; some sites refuse to be shown inside other pages). New tiles go in the first free
   spot. Drag a tile by its grip, resize it from the corner; the settings button changes its title or
   content.
+- **Sections** (for KPI dashboards): Add tile → Section, with an ID (e.g. KPI-07), a name and a short
+  description. The tiles below a section belong to it, up to the next section. A **Sections** navigator
+  appears on the right: click to jump, the section in view is highlighted; on phones it is a list at the
+  top. Links can point to a section, and in PDF exports each section starts on a new page.
 - **Tabs**: add with **+ Tab**, rename with the pencil (or double-click), delete with ×. Filters apply to
   every tab.
 - **Add filter**: choose a dataset and field. Text fields offer *pick values* (with search), *pick one
@@ -29,6 +33,9 @@
   down** (date levels and hierarchies; use ‹ on the tile to go back) or **View data** (the rows behind it).
 - Tile menu (⋮): view data, export CSV (Explorers and up), save as image, open the chart in the builder
   (if it is yours).
+- **Export**: PDF (A4 landscape, a page per section, with the filters in use) or a PNG image of the tab,
+  drawn on the server exactly as you see it (your own rows only). Chart tiles also export data to CSV or
+  Excel.
 - **Copy link** copies an address that opens the dashboard with the same filters, parameters and tab.
 - ☆ adds it to your favourites, shown first on the home page.
 

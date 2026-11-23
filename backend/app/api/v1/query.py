@@ -12,10 +12,10 @@ import csv
 import io
 import re
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,9 @@ from app.schemas import (
 )
 from app.semantic import model
 from app.semantic.formula import FormulaError
-from app.services import audit
+from app.services import audit, excel
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 router = APIRouter(tags=["query"])
 require_creator = require_role(Role.creator)
@@ -48,6 +50,10 @@ require_creator = require_role(Role.creator)
 
 class QueryIn(QuerySpec):
     as_user_id: int | None = None  # preview as another user (dataset owner or admin)
+    format: Literal["csv", "xlsx"] = "csv"  # exports only
+
+
+EXTRA = {"as_user_id", "format"}
 
 
 # ------------------------------------------------------------------ helpers
@@ -116,7 +122,7 @@ def run_query(
     ds = _queryable(db, body.dataset, user)
     principal = _principal(db, request, user, ds, body.as_user_id)
     try:
-        return engine.run(db, QuerySpec(**body.model_dump(exclude={"as_user_id"})), principal)
+        return engine.run(db, QuerySpec(**body.model_dump(exclude=EXTRA)), principal)
     except (engine.QueryError, duck.QueryTimeout) as exc:
         raise _bad(exc) from exc
 
@@ -138,9 +144,7 @@ def export_query(
     ds = _queryable(db, body.dataset, user)
     principal = _principal(db, request, user, ds, body.as_user_id)
     try:
-        columns, batches = engine.stream_rows(
-            db, QuerySpec(**body.model_dump(exclude={"as_user_id"})), principal
-        )
+        columns, batches = engine.stream_rows(db, QuerySpec(**body.model_dump(exclude=EXTRA)), principal)
     except (engine.QueryError, duck.QueryTimeout) as exc:
         raise _bad(exc) from exc
     audit.record(
@@ -150,8 +154,16 @@ def export_query(
         request=request,
         object_type="dataset",
         object_id=ds.id,
-        details={"format": "csv", "mode": body.mode},
+        details={"format": body.format, "mode": body.mode},
     )
+    safe = re.sub(r"[^\w\- ]+", "", ds.name).strip() or "export"
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
+    if body.format == "xlsx":
+        return Response(
+            excel.workbook(columns, batches, ds.name),
+            media_type=XLSX,
+            headers={"Content-Disposition": f'attachment; filename="{safe} {stamp}.xlsx"'},
+        )
 
     def generate():
         buf = io.StringIO()
@@ -164,8 +176,6 @@ def export_query(
             writer.writerows([[_csv_cell(v) for v in row] for row in batch])
             yield buf.getvalue()
 
-    safe = re.sub(r"[^\w\- ]+", "", ds.name).strip() or "export"
-    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
     return StreamingResponse(
         generate(),
         media_type="text/csv; charset=utf-8",

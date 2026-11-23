@@ -9,6 +9,7 @@ import ChartList from "./pages/charts/ChartList";
 import DashboardList from "./pages/dashboards/DashboardList";
 import ConnectionPage from "./pages/data/ConnectionPage";
 import DataHome from "./pages/data/DataHome";
+import MapsPage from "./pages/data/MapsPage";
 import DatasetPage from "./pages/data/DatasetPage";
 import Audit from "./pages/admin/Audit";
 import Groups from "./pages/admin/Groups";
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="charts" element={<RequireAuth role="explorer"><ChartList /></RequireAuth>} />
         <Route path="charts/:id" element={<RequireAuth role="explorer"><Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}><ChartBuilder /></Suspense></RequireAuth>} />
         <Route path="data" element={<RequireAuth role="creator"><DataHome /></RequireAuth>} />
+        <Route path="data/maps" element={<RequireAuth role="creator"><MapsPage /></RequireAuth>} />
         <Route path="data/connections/:id" element={<RequireAuth role="creator"><ConnectionPage /></RequireAuth>} />
         <Route path="data/datasets/:id" element={<RequireAuth role="creator"><DatasetPage /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth role="admin"><Users /></RequireAuth>} />

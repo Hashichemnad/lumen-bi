@@ -1,12 +1,15 @@
+import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
-  AreaChart, BarChart3, BarChartHorizontal, Grid3x3, Hash, LineChart, Map, PieChart, ScatterChart, Sparkles, Table2,
-  LayoutGrid, Layers,
+  AreaChart, ArrowDownWideNarrow, BarChart3, BarChartHorizontal, CalendarDays, ChartBarStacked, ChartColumnStacked, ChartGantt,
+  ChartNoAxesGantt, CircleDot, CircleGauge, Ellipsis, Gauge, Grid3x3, Hash, Layers, LayoutGrid, LineChart, Map, MapPinned,
+  Origami, PieChart, Radar, Rows3, ScatterChart, Sparkles, Spline, Star, Table2, Timer, Triangle, Waypoints, Workflow,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Input, Select } from "../../components/ui";
-import { CHART_KINDS } from "../../lib/chart/showme";
+import { get } from "../../lib/api";
+import { CHART_GROUPS, CHART_KINDS } from "../../lib/chart/showme";
 import type { ChartConfig, ChartOptions, ChartType, RefLine } from "../../lib/chart/types";
 
 const ICONS: Record<ChartType, ReactNode> = {
@@ -14,6 +17,13 @@ const ICONS: Record<ChartType, ReactNode> = {
   line: <LineChart size={18} />, area: <AreaChart size={18} />, combo: <BarChartHorizontal size={18} />,
   scatter: <ScatterChart size={18} />, heatmap: <Grid3x3 size={18} />, treemap: <LayoutGrid size={18} />,
   donut: <PieChart size={18} />, map: <Map size={18} />,
+  rating: <Star size={18} />, pyramid: <Triangle size={18} />, stacked_pyramid: <ChartBarStacked size={18} />,
+  parallel: <Spline size={18} />, radar: <Radar size={18} />, timeline: <Timer size={18} />, time_bar: <ChartColumnStacked size={18} />,
+  time_combo: <ChartNoAxesGantt size={18} />, calendar: <CalendarDays size={18} />, gantt: <ChartGantt size={18} />,
+  gauge: <Gauge size={18} />, polar_gauge: <CircleGauge size={18} />, flat_gauge: <Rows3 size={18} />, bullet: <Ellipsis size={18} />,
+  dot_h: <CircleDot size={18} />, dot_v: <ScatterChart size={18} />, waterfall: <Waypoints size={18} />,
+  stacked_waterfall: <Layers size={18} />, funnel: <ArrowDownWideNarrow size={18} />, origami: <Origami size={18} />,
+  sankey: <Workflow size={18} />, geomap: <MapPinned size={18} />,
 };
 
 export function ShowMe({ cfg, resolved, available, onPick }: {
@@ -28,19 +38,26 @@ export function ShowMe({ cfg, resolved, available, onPick }: {
           <Sparkles size={12} /> Automatic
         </button>
       </div>
-      <div className="grid grid-cols-4 gap-1">
-        {CHART_KINDS.map((k) => {
-          const ok = available.has(k.type);
-          return (
-            <button key={k.type} disabled={!ok} onClick={() => onPick(k.type)} title={`${k.label}: ${k.needs}`} aria-label={k.label}
-              className={clsx("flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border text-[10px]",
-                resolved === k.type ? "border-brand-600 bg-brand-50 text-brand-700" : "border-transparent text-slate-600 hover:bg-slate-100",
-                !ok && "cursor-not-allowed opacity-30")}>
-              {ICONS[k.type]}
-              <span className="leading-tight">{k.label}</span>
-            </button>
-          );
-        })}
+      <div className="space-y-2">
+        {CHART_GROUPS.map((g) => (
+          <div key={g}>
+            <div className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">{g}</div>
+            <div className="grid grid-cols-4 gap-1">
+              {CHART_KINDS.filter((k) => k.group === g).map((k) => {
+                const ok = available.has(k.type);
+                return (
+                  <button key={k.type} disabled={!ok} onClick={() => onPick(k.type)} title={`${k.label}: ${k.needs}`} aria-label={k.label}
+                    className={clsx("flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border text-[10px]",
+                      resolved === k.type ? "border-brand-600 bg-brand-50 text-brand-700" : "border-transparent text-slate-600 hover:bg-slate-100",
+                      !ok && "cursor-not-allowed opacity-30")}>
+                    {ICONS[k.type]}
+                    <span className="line-clamp-2 leading-tight">{k.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
       <p className="mt-2 text-xs text-slate-500">{CHART_KINDS.find((k) => k.type === resolved)?.needs}</p>
     </div>
@@ -56,6 +73,20 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function BoundaryPicker({ value, onChange }: { value?: number; onChange: (v?: number) => void }) {
+  const list = useQuery({ queryKey: ["boundaries"], queryFn: () => get<{ id: number; name: string; features: number }[]>("/boundaries") });
+  return (
+    <div>
+      <span className="mb-1 block text-sm text-slate-600">Map</span>
+      <Select className="py-1.5" value={value ?? ""} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : undefined)}>
+        <option value="">Choose a map</option>
+        {list.data?.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.features} areas)</option>)}
+      </Select>
+      {list.data && !list.data.length && <p className="mt-1 text-xs text-slate-500">No maps yet. Creators upload them under Data → Maps.</p>}
+    </div>
+  );
+}
+
 export function OptionsPanel({ cfg, type, onChange }: { cfg: ChartConfig; type: ChartType; onChange: (o: Partial<ChartOptions>, limit?: number) => void }) {
   const o = cfg.options;
   const cartesian = ["bar", "stacked", "line", "area", "combo"].includes(type);
@@ -68,7 +99,7 @@ export function OptionsPanel({ cfg, type, onChange }: { cfg: ChartConfig; type: 
         <span className="mb-1 block text-sm text-slate-600">Title</span>
         <Input className="py-1.5" value={o.title ?? ""} placeholder="Automatic" onChange={(e) => onChange({ title: e.target.value })} />
       </div>
-      {type !== "table" && type !== "kpi" && (
+      {!["table", "kpi", "rating", "gauge", "polar_gauge", "flat_gauge"].includes(type) && (
         <Row label="Value labels">
           <div className="w-28">
             <Select className="py-1" value={o.labels ?? "none"} onChange={(e) => onChange({ labels: e.target.value as ChartOptions["labels"] })}>
@@ -79,7 +110,7 @@ export function OptionsPanel({ cfg, type, onChange }: { cfg: ChartConfig; type: 
           </div>
         </Row>
       )}
-      {type !== "table" && type !== "kpi" && type !== "heatmap" && (
+      {!["table", "kpi", "rating", "heatmap", "gauge", "polar_gauge", "flat_gauge", "funnel", "calendar"].includes(type) && (
         <Row label="Legend"><input type="checkbox" checked={o.legend !== false} onChange={(e) => onChange({ legend: e.target.checked })} /></Row>
       )}
       {type === "table" && (
@@ -119,6 +150,30 @@ export function OptionsPanel({ cfg, type, onChange }: { cfg: ChartConfig; type: 
           )}
         </div>
       )}
+      {["gauge", "polar_gauge", "flat_gauge"].includes(type) && (
+        <Row label="Maximum">
+          <Input className="w-28 py-1" type="number" placeholder="Auto / target" value={o.gaugeMax ?? ""} onChange={(e) => onChange({ gaugeMax: e.target.value === "" ? undefined : Number(e.target.value) })} />
+        </Row>
+      )}
+      {type === "rating" && (
+        <Row label="Full marks at">
+          <Input className="w-28 py-1" type="number" value={o.ratingMax ?? 5} onChange={(e) => onChange({ ratingMax: Number(e.target.value) || 5 })} />
+        </Row>
+      )}
+      {["waterfall", "stacked_waterfall", "origami"].includes(type) && (
+        <Row label="Show the total"><input type="checkbox" checked={o.showTotal !== false} onChange={(e) => onChange({ showTotal: e.target.checked })} /></Row>
+      )}
+      {["funnel", "origami"].includes(type) && (
+        <Row label="Order">
+          <div className="w-28">
+            <Select className="py-1" value={o.order ?? "value"} onChange={(e) => onChange({ order: e.target.value as "value" | "data" })}>
+              <option value="value">By value</option>
+              <option value="data">As sorted</option>
+            </Select>
+          </div>
+        </Row>
+      )}
+      {type === "geomap" && <BoundaryPicker value={o.boundary} onChange={(boundary) => onChange({ boundary })} />}
       <Row label="Most results">
         <div className="w-28">
           <Select className="py-1" value={cfg.limit ?? 5000} onChange={(e) => onChange({}, Number(e.target.value))}>
