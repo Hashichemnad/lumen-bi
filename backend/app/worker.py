@@ -40,3 +40,10 @@ def dispatch_due_syncs() -> int:
     from app.services.sync import dispatch_due
 
     return dispatch_due()
+
+
+@celery_app.task(name="lumen.render_dashboard")
+def render_dashboard(user_id: int, dashboard_id: int, fmt: str, state: str | None = None) -> str:
+    from app.services.render import render_b64
+
+    return render_b64(user_id, dashboard_id, fmt, state)

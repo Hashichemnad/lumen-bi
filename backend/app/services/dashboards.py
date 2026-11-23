@@ -17,7 +17,7 @@ from app.models import Chart, Dashboard, DashboardShare, Dataset, Hierarchy, Rol
 from app.query.spec import Filter, QuerySpec
 
 MAX_CONFIG_BYTES = 500_000
-ITEM_KINDS = {"chart", "text", "image", "web"}
+ITEM_KINDS = {"chart", "text", "image", "web", "section"}
 FILTER_KINDS = {"values", "range", "relative", "text"}
 URL_RE = re.compile(r"^https://[^\s<>\"']+$", re.I)
 ID_RE = re.compile(r"^[\w-]{1,40}$")
@@ -116,6 +116,10 @@ def validate_config(db: Session, user: User, config: dict, previous: dict | None
                 clean["show_title"] = bool(item.get("show_title", True))
             elif kind == "text":
                 clean["text"] = str(item.get("text") or "")[:20_000]
+            elif kind == "section":
+                # A section header (e.g. one KPI): code such as "KPI-07", name in title, description in text
+                clean["code"] = str(item.get("code") or "")[:50]
+                clean["text"] = str(item.get("text") or "")[:2_000]
             else:
                 url = str(item.get("url") or "").strip()
                 if url and not URL_RE.match(url):

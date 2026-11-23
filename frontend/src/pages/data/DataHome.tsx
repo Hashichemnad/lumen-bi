@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Combine, Database, FileSpreadsheet, Globe, Server } from "lucide-react";
+import { Cloud, Combine, Database, FileSpreadsheet, Globe, Map as MapIcon, Server } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -35,6 +35,7 @@ export default function DataHome() {
           <Button variant="secondary" onClick={() => setAdding("salesforce")}><Cloud size={16} /> Salesforce</Button>
           <Button variant="secondary" onClick={() => setAdding("rest")}><Globe size={16} /> REST API</Button>
           <Button variant="secondary" onClick={() => setAdding("combine")} disabled={!datasets.data?.some((d) => d.columns.length)}><Combine size={16} /> Join or combine datasets</Button>
+          <Link to="/data/maps"><Button variant="secondary"><MapIcon size={16} /> Maps</Button></Link>
         </div>
       </Card>
 

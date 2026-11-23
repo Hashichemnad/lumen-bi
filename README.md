@@ -3,10 +3,11 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–9 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> Status: milestones 1–10 of 14 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
 > roles, groups, audit log; data connections: files, Oracle, PostgreSQL, Salesforce, REST APIs with
 > scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins; query
-> engine with table calculations, caching and row-level security; chart builder; dashboards).
+> engine with table calculations, caching and row-level security; chart builder with 33 chart types;
+> dashboards with sections; PDF, PNG and Excel exports).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)

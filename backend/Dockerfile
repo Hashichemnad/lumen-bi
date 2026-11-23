@@ -11,6 +11,12 @@ WORKDIR /app
 COPY pyproject.toml ./
 RUN mkdir app && touch app/__init__.py && pip install . && rm -rf app
 
+# Headless Chromium for PDF/PNG exports of dashboards (shared by API and worker)
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
+    && playwright install --with-deps chromium && chmod -R o+rx /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 RUN pip install --no-deps . && useradd --create-home lumen && mkdir -p /data && chown lumen /data
 USER lumen

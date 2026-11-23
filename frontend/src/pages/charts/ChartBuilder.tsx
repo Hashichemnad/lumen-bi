@@ -259,9 +259,9 @@ export default function ChartBuilder() {
       setSaving(false);
     }
   };
-  const exportCsv = async () => {
+  const exportCsv = async (format: "csv" | "xlsx" = "csv") => {
     try {
-      await download("/query/export", { dataset: datasetId, ...buildQuery(cfg, type), limit: undefined }, "chart.csv");
+      await download("/query/export", { dataset: datasetId, ...buildQuery(cfg, type), limit: undefined, format }, `chart.${format}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     }
@@ -329,8 +329,9 @@ export default function ChartBuilder() {
             <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => setCfg({ ...emptyConfig(), params: cfg.params })} title="Clear" aria-label="Clear"><Eraser size={16} /></button>
             <span className="mx-1 h-5 w-px bg-slate-200" />
             <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => setViewData({ spec: underlyingQuery(cfg), title: "Data behind this chart" })}><Eye size={14} /> View data</Button>
-            {hasRole("explorer") && <Button size="sm" variant="secondary" disabled={!data.data} onClick={exportCsv}><Download size={14} /> CSV</Button>}
-            {!["table", "kpi"].includes(type) && <Button size="sm" variant="secondary" disabled={!data.data} onClick={exportPng}><Image size={14} /> PNG</Button>}
+            {hasRole("explorer") && <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => exportCsv("csv")}><Download size={14} /> CSV</Button>}
+            {hasRole("explorer") && <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => exportCsv("xlsx")}><Download size={14} /> Excel</Button>}
+            {!["table", "kpi", "rating"].includes(type) && <Button size="sm" variant="secondary" disabled={!data.data} onClick={exportPng}><Image size={14} /> PNG</Button>}
             {!isNew && <Button size="sm" variant="secondary" onClick={() => save(true)} disabled={saving}><Copy size={14} /> Save copy</Button>}
             <Button size="sm" onClick={() => save()} disabled={saving || (!dirty && !isNew)}><Save size={14} /> {saving ? "Saving…" : "Save"}</Button>
           </div>

@@ -1,6 +1,10 @@
-import { BarChart, HeatmapChart, LineChart, MapChart, PieChart, ScatterChart, TreemapChart } from "echarts/charts";
 import {
-  GeoComponent, GridComponent, LegendComponent, MarkLineComponent, TitleComponent, TooltipComponent, VisualMapComponent,
+  BarChart, CustomChart, FunnelChart, GaugeChart, HeatmapChart, LineChart, MapChart, ParallelChart, PieChart, RadarChart,
+  SankeyChart, ScatterChart, TreemapChart,
+} from "echarts/charts";
+import {
+  CalendarComponent, DataZoomComponent, GeoComponent, GridComponent, LegendComponent, MarkLineComponent, ParallelComponent,
+  PolarComponent, RadarComponent, TitleComponent, TooltipComponent, VisualMapComponent,
 } from "echarts/components";
 import * as echarts from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
@@ -8,7 +12,8 @@ import { CanvasRenderer } from "echarts/renderers";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 echarts.use([
-  BarChart, LineChart, PieChart, ScatterChart, HeatmapChart, TreemapChart, MapChart,
+  BarChart, LineChart, PieChart, ScatterChart, HeatmapChart, TreemapChart, MapChart, CustomChart, FunnelChart, GaugeChart,
+  ParallelChart, RadarChart, SankeyChart, CalendarComponent, DataZoomComponent, ParallelComponent, PolarComponent, RadarComponent,
   GridComponent, TooltipComponent, LegendComponent, VisualMapComponent, MarkLineComponent, GeoComponent, TitleComponent,
   CanvasRenderer,
 ]);
@@ -66,7 +71,9 @@ const EChart = forwardRef<EChartHandle, {
     for (const [name, geo] of Object.entries(maps ?? {})) {
       echarts.registerMap(name, geo as Parameters<typeof echarts.registerMap>[1]);
     }
-    chart.current?.setOption(option, { notMerge: true });
+    // Print view (PDF/PNG export): no animation, so the picture is complete when it is taken
+    const printing = (window as unknown as { __lumenPrint?: boolean }).__lumenPrint;
+    chart.current?.setOption(printing ? { ...option, animation: false } : option, { notMerge: true });
   }, [option, maps]);
 
   return <div ref={el} style={{ height, width: "100%" }} />;

@@ -1,4 +1,4 @@
-{$SITE_ADDRESS::80} {
+(app) {
 	encode zstd gzip
 
 	handle /api/* {
@@ -17,4 +17,14 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+}
+
+{$SITE_ADDRESS::80} {
+	import app
+}
+
+# Internal only (not published): the export renderer in the worker opens dashboards here, whatever the
+# public address and HTTPS set-up are
+http://:8081 {
+	import app
 }

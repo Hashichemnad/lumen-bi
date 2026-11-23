@@ -4,17 +4,22 @@ Anyone can open the dashboards shared with them (Viewers too). Explorers and up 
 or an admin manages sharing; people given "edit" can change the layout.
 """
 
+import base64
 import csv
 import io
 import re
 from datetime import UTC, datetime
+from typing import Literal
 
+from celery.exceptions import TimeoutError as CeleryTimeout
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, require_role
+from app.core.config import get_settings
 from app.db import get_db
 from app.models import (
     Chart,
@@ -36,7 +41,7 @@ from app.schemas import (
     ShareEntry,
 )
 from app.semantic import model
-from app.services import audit
+from app.services import audit, excel, render
 from app.services import dashboards as svc
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
@@ -417,8 +422,15 @@ def export_tile(
         request=request,
         object_type="dashboard",
         object_id=d.id,
-        details={"format": "csv", "chart": chart.id, "rows": body.rows},
+        details={"format": body.format, "chart": chart.id, "rows": body.rows},
     )
+    safe = re.sub(r"[^\w\- ]+", "", chart.name).strip() or "export"
+    if body.format == "xlsx":
+        return Response(
+            excel.workbook(columns, batches, chart.name),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{safe}.xlsx"'},
+        )
 
     def generate():
         buf = io.StringIO()
@@ -436,7 +448,6 @@ def export_tile(
             )
             yield buf.getvalue()
 
-    safe = re.sub(r"[^\w\- ]+", "", chart.name).strip() or "export"
     return StreamingResponse(
         generate(),
         media_type="text/csv; charset=utf-8",
@@ -469,3 +480,53 @@ def filter_values(
         )
     except engine.QueryError as exc:
         raise HTTPException(422, exc.message) from exc
+
+
+class RenderIn(BaseModel):
+    format: Literal["pdf", "png"] = "pdf"
+    state: str | None = Field(None, max_length=8000)  # the ?s= value: filters, parameters, tab
+
+
+def _render(user_id: int, dashboard_id: int, fmt: str, state: str | None) -> bytes:
+    settings = get_settings()
+    if settings.jobs_mode == "celery":
+        from app.worker import render_dashboard
+
+        result = render_dashboard.delay(user_id, dashboard_id, fmt, state)
+        try:
+            return base64.b64decode(result.get(timeout=settings.render_timeout_seconds))
+        except CeleryTimeout as exc:
+            raise render.RenderError("Drawing the dashboard took too long") from exc
+    return render.render_dashboard(user_id, dashboard_id, fmt, state)
+
+
+@router.post("/{dashboard_id}/render")
+def render_dashboard(
+    dashboard_id: int,
+    body: RenderIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """The dashboard as a PDF or PNG, as this person sees it (their row-level security applies)."""
+    d, _ = _get(db, dashboard_id, user)
+    try:
+        data = _render(user.id, d.id, body.format, body.state)
+    except render.RenderError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    audit.record(
+        db,
+        "dashboard.export",
+        user=user,
+        request=request,
+        object_type="dashboard",
+        object_id=d.id,
+        details={"format": body.format},
+    )
+    safe = re.sub(r"[^\w\- ]+", "", d.name).strip() or "dashboard"
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M")
+    return Response(
+        data,
+        media_type="application/pdf" if body.format == "pdf" else "image/png",
+        headers={"Content-Disposition": f'attachment; filename="{safe} {stamp}.{body.format}"'},
+    )

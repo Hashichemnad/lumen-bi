@@ -94,10 +94,10 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
     const n = drill.steps.length - 1;
     actions.onDrill(tile.id, n > 0 ? { steps: drill.steps.slice(0, n), filters: drill.filters.slice(0, n), path: drill.path.slice(0, n) } : null);
   };
-  const exportCsv = async (rows: boolean) => {
+  const exportCsv = async (rows: boolean, format: "csv" | "xlsx" = "csv") => {
     setMenu(null);
     try {
-      await download(`/dashboards/${dash.id}/export`, { ...body, rows }, `${chart.name}.csv`);
+      await download(`/dashboards/${dash.id}/export`, { ...body, rows, format }, `${chart.name}.${format}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     }
@@ -112,7 +112,7 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
         {tile.show_title !== false && <h3 className="min-w-0 truncate text-sm font-semibold text-slate-900" title={title}>{title}</h3>}
         {drill && <span className="truncate text-xs text-slate-500">· {drill.path.join(" › ")}</span>}
         {isCrossSource && <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">Filtering others</span>}
-        <button onClick={(e) => setMenu({ x: e.clientX - 200, y: e.clientY + 8 })} className="no-drag ms-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Options for ${title}`}>
+        <button onClick={(e) => setMenu({ x: e.clientX - 200, y: e.clientY + 8 })} className="no-drag print:hidden ms-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Options for ${title}`}>
           <MoreVertical size={15} />
         </button>
       </div>
@@ -124,7 +124,7 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
           <ChartView ref={view} cfg={cfg} type={type} result={data.data} identity={identityList} height={Math.max(80, height)}
             stale={data.isFetching} onMark={(e) => setMark(e)} />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading…</div>
+          <div data-state="loading" className="flex h-full items-center justify-center text-sm text-slate-400">Loading…</div>
         )}
       </div>
       {mark && row && (
@@ -146,7 +146,8 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
             <MenuItem onClick={() => { actions.onViewData(tile.id, `Data behind ${title}`, body.filters); setMenu(null); }}><Eye size={14} /> View data</MenuItem>
           )}
           {canExport && <MenuItem onClick={() => exportCsv(false)}><Download size={14} /> Export as CSV</MenuItem>}
-          {!["table", "kpi"].includes(type) && (
+          {canExport && <MenuItem onClick={() => exportCsv(false, "xlsx")}><Download size={14} /> Export as Excel</MenuItem>}
+          {!["table", "kpi", "rating"].includes(type) && (
             <MenuItem onClick={() => { const url = view.current?.png(); if (url) saveFile(url, `${title}.png`); setMenu(null); }}><ImageIcon size={14} /> Save as image</MenuItem>
           )}
           {chart.can_edit && (
@@ -174,7 +175,8 @@ export default function DashboardTile(props: {
   const { tile, editing, actions, heightPx } = props;
   const chartHeight = heightPx - 44;
   return (
-    <div className={clsx("group relative h-full overflow-hidden rounded-xl border bg-white", editing ? "border-dashed border-slate-300" : "border-slate-200")}>
+    <div data-tile={tile.id} data-section={tile.kind === "section" ? tile.id : undefined}
+      className={clsx("group relative h-full overflow-hidden rounded-xl border bg-white", editing ? "border-dashed border-slate-300" : "border-slate-200")}>
       {editing && (
         <div className="absolute end-2 top-2 z-10 flex gap-1 rounded-md bg-white/90 p-0.5 opacity-0 shadow-sm ring-1 ring-slate-200 transition-opacity group-hover:opacity-100">
           <span className="tile-handle cursor-grab rounded p-1 text-slate-500 hover:bg-slate-100 active:cursor-grabbing" title="Drag to move"><GripVertical size={14} /></span>
@@ -183,6 +185,15 @@ export default function DashboardTile(props: {
         </div>
       )}
       {tile.kind === "chart" && <ChartTile {...props} height={chartHeight} />}
+      {tile.kind === "section" && (
+        <div className="tile-handle flex h-full items-center gap-4 border-s-4 border-brand-600 bg-gradient-to-r from-brand-50 to-white px-5">
+          {tile.code && <span className="shrink-0 rounded-md bg-brand-600 px-2 py-1 text-xs font-semibold tracking-wide text-white">{tile.code}</span>}
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-slate-900">{tile.title || "Section"}</h2>
+            {tile.text && <p className="truncate text-sm text-slate-600">{tile.text}</p>}
+          </div>
+        </div>
+      )}
       {tile.kind === "text" && (
         <div className="tile-handle h-full overflow-auto p-4">
           {tile.text ? <Markdown text={tile.text} /> : <p className="text-sm text-slate-400">Empty text. Use the settings to write.</p>}

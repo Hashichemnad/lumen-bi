@@ -17,8 +17,11 @@ const ROADMAP = [
   { name: "Query engine with row-level security", done: true },
   { name: "Chart builder", done: true },
   { name: "Interactive dashboards", done: true },
-  { name: "Exports, email reports and alerts", done: false },
-  { name: "AI: ask questions, explain, forecast", done: false },
+  { name: "More chart types, KPI sections, PDF and Excel exports", done: true },
+  { name: "New design, themes and Arabic", done: false },
+  { name: "Email reports, alerts, embedding, KPI goals", done: false },
+  { name: "AI and connecting Claude (MCP)", done: false },
+  { name: "Admin tools and hardening", done: false },
 ];
 
 export default function Home() {

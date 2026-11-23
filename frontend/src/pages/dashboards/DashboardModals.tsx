@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { BarChart3, Globe, Image as ImageIcon, Plus, Type, X } from "lucide-react";
+import { BarChart3, Bookmark, Globe, Image as ImageIcon, Plus, Type, X } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -23,19 +23,24 @@ export function AddTileModal({ onAdd, onClose }: { onAdd: (tile: Omit<Tile, "des
   const kinds: [Tile["kind"], string, React.ReactNode][] = [
     ["chart", "Chart", <BarChart3 key="c" size={16} />], ["text", "Text", <Type key="t" size={16} />],
     ["image", "Image", <ImageIcon key="i" size={16} />], ["web", "Web page", <Globe key="w" size={16} />],
+    ["section", "Section", <Bookmark key="s" size={16} />],
   ];
+  const [code, setCode] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const okUrl = /^https:\/\/\S+$/i.test(url.trim());
   return (
     <Modal open wide title="Add to the dashboard" onClose={onClose}
       footer={kind === "chart" ? <Button variant="secondary" onClick={onClose}>Close</Button> : <>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button disabled={kind !== "text" && !okUrl} onClick={() => {
-          if (kind === "text") onAdd({ kind, text: "# Title\nWrite a note, a definition or a link." }, { w: 12, h: 2 });
+        <Button disabled={kind === "section" ? !title.trim() : kind !== "text" && !okUrl} onClick={() => {
+          if (kind === "section") onAdd({ kind, code: code.trim(), title: title.trim(), text: description.trim() }, { w: 12, h: 2 });
+          else if (kind === "text") onAdd({ kind, text: "# Title\nWrite a note, a definition or a link." }, { w: 12, h: 2 });
           else onAdd({ kind, url: url.trim(), alt, fit: "contain" }, { w: kind === "web" ? 6 : 4, h: kind === "web" ? 8 : 4 });
           onClose();
         }}>Add</Button>
       </>}>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         {kinds.map(([k, label, icon]) => (
           <button key={k} onClick={() => setKind(k)}
             className={clsx("flex flex-col items-center gap-1 rounded-lg border p-3 text-sm", kind === k ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-200 hover:bg-slate-50")}>
@@ -55,6 +60,16 @@ export function AddTileModal({ onAdd, onClose }: { onAdd: (tile: Omit<Tile, "des
           {charts.data && !charts.data.length && (
             <p className="p-4 text-sm text-slate-500">You have no saved charts yet. <Link className="text-brand-600 hover:underline" to="/charts">Make a chart</Link> first.</p>
           )}
+        </div>
+      )}
+      {kind === "section" && (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">A section header (for example one KPI). The tiles below it belong to it, up to the next section. Sections appear in the navigator on the right.</p>
+          <div className="grid grid-cols-[10rem_1fr] gap-3">
+            <FormField label="ID (optional)"><Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="KPI-07" /></FormField>
+            <FormField label="Name"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Tickets completed on time" autoFocus /></FormField>
+          </div>
+          <FormField label="Description (optional)"><Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Share of tickets closed within the SLA" /></FormField>
         </div>
       )}
       {kind === "text" && <p className="text-sm text-slate-600">Adds a text tile across the dashboard. You can write headings (#), lists (-), **bold** and links.</p>}
@@ -82,7 +97,16 @@ export function TileModal({ tile, onSave, onClose }: { tile: Tile; onSave: (t: T
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button disabled={!urlOk} onClick={() => { onSave(t); onClose(); }}>Save</Button>
       </>}>
-      {t.kind !== "text" && (
+      {t.kind === "section" && (
+        <>
+          <div className="grid grid-cols-[10rem_1fr] gap-3">
+            <FormField label="ID (optional)"><Input value={t.code ?? ""} onChange={(e) => set({ code: e.target.value })} placeholder="KPI-07" /></FormField>
+            <FormField label="Name"><Input value={t.title ?? ""} onChange={(e) => set({ title: e.target.value })} /></FormField>
+          </div>
+          <FormField label="Description"><Input value={t.text ?? ""} onChange={(e) => set({ text: e.target.value })} /></FormField>
+        </>
+      )}
+      {t.kind !== "text" && t.kind !== "section" && (
         <FormField label="Title" hint={t.kind === "chart" ? "Leave empty to use the chart's name." : undefined}>
           <Input value={t.title ?? ""} onChange={(e) => set({ title: e.target.value })} />
         </FormField>

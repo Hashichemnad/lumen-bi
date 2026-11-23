@@ -60,7 +60,10 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   // Work areas (the chart builder) use the full width, with an icon-only menu
-  const compact = /^\/(charts|dashboards)\/.+/.test(useLocation().pathname);
+  const location = useLocation();
+  const compact = /^\/(charts|dashboards)\/.+/.test(location.pathname);
+  // The export renderer opens pages in print view: the page alone, no menus
+  if (new URLSearchParams(location.search).get("print") === "1") return <Outlet />;
   return (
     <div className="flex h-full">
       <aside className={clsx("flex shrink-0 flex-col border-r border-slate-200 bg-white", compact ? "w-14" : "w-60")}>

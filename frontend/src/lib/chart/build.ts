@@ -13,6 +13,7 @@ import type { QueryColumn, QueryResult } from "../types";
 import { compactNumber, escapeHtml, formatValue } from "./format";
 import { countryCenters, countryIndex, countryName, loadWorld, place, regionAround } from "./geo";
 import { ALL_PAIRS_CAP, CATEGORICAL, FONT, INK, OTHER, OTHER_LABEL, colorMap, inkOn, sequential, SEQUENTIAL } from "./palette";
+import { buildMore, MORE_TYPES } from "./build2";
 import type { ChartConfig, ChartType, Pill } from "./types";
 
 export interface Built {
@@ -21,8 +22,8 @@ export interface Built {
   notes: string[];
 }
 
-type Row = unknown[];
-type Obj = Record<string, unknown>;
+export type Row = unknown[];
+export type Obj = Record<string, unknown>;
 
 // ------------------------------------------------------------------ layout: which pill plays which part
 export interface Layout {
@@ -66,13 +67,13 @@ export function identityPill(cfg: ChartConfig, type: ChartType): Pill | undefine
   const L = layout(cfg);
   if (L.colorDim) return L.colorDim;
   const dims = [...L.cats, ...L.detail];
-  if (type === "donut" || type === "treemap") return dims[0];
+  if (["donut", "treemap", "origami", "radar", "sankey"].includes(type)) return dims[0];
   if (type === "stacked" && L.cats.length > 1) return L.cats[L.cats.length - 1];
   return undefined;
 }
 
 // ------------------------------------------------------------------ shared pieces
-class Result {
+export class Result {
   index: Map<string, number>;
   constructor(public r: QueryResult) {
     this.index = new Map(r.columns.map((c, i) => [c.key, i]));
@@ -98,7 +99,7 @@ class Result {
   }
 }
 
-function weightsOf(R: Result, rows: Row[], dim: Pill, m?: Pill): Map<string, number> {
+export function weightsOf(R: Result, rows: Row[], dim: Pill, m?: Pill): Map<string, number> {
   const w = new Map<string, number>();
   for (const r of rows) {
     const k = String(R.get(r, dim));
@@ -107,9 +108,9 @@ function weightsOf(R: Result, rows: Row[], dim: Pill, m?: Pill): Map<string, num
   return w;
 }
 
-const additive = (col?: QueryColumn) => !!col && !col.calc && (col.agg === "sum" || col.agg === "count");
+export const additive = (col?: QueryColumn) => !!col && !col.calc && (col.agg === "sum" || col.agg === "count");
 
-function tooltipBox(title: string, lines: { color?: string; value: string; name: string }[], extra: string[] = []) {
+export function tooltipBox(title: string, lines: { color?: string; value: string; name: string }[], extra: string[] = []) {
   const items = lines
     .map(
       (l) =>
@@ -123,12 +124,12 @@ function tooltipBox(title: string, lines: { color?: string; value: string; name:
   return `<div style="font-family:${FONT};font-size:12px">${title ? `<div style="color:${INK.secondary}">${escapeHtml(title)}</div>` : ""}${items}${more}</div>`;
 }
 
-function extraLines(R: Result, row: Row | undefined, pills: Pill[]): string[] {
+export function extraLines(R: Result, row: Row | undefined, pills: Pill[]): string[] {
   if (!row) return [];
   return pills.map((p) => `${R.label(p)}: ${R.text(row, p)}`);
 }
 
-const TOOLTIP_BASE = {
+export const TOOLTIP_BASE = {
   backgroundColor: "#ffffff",
   borderColor: "rgba(11,11,11,0.10)",
   borderWidth: 1,
@@ -137,7 +138,7 @@ const TOOLTIP_BASE = {
   textStyle: { fontFamily: FONT },
 };
 
-function valueAxis(fmtCol: QueryColumn | undefined, percent = false): Obj {
+export function valueAxis(fmtCol: QueryColumn | undefined, percent = false): Obj {
   return {
     type: "value",
     axisLabel: {
@@ -152,7 +153,7 @@ function valueAxis(fmtCol: QueryColumn | undefined, percent = false): Obj {
   };
 }
 
-function categoryAxis(data: string[]): Obj {
+export function categoryAxis(data: string[]): Obj {
   return {
     type: "category",
     data,
@@ -162,7 +163,7 @@ function categoryAxis(data: string[]): Obj {
   };
 }
 
-function legend(names: { name: string; icon: string }[], show: boolean): Obj {
+export function legend(names: { name: string; icon: string }[], show: boolean): Obj {
   const lines = names.length > 0 && names.every((n) => n.icon === LINE_ICON);
   return {
     show: show && names.length > 1,
@@ -177,7 +178,7 @@ function legend(names: { name: string; icon: string }[], show: boolean): Obj {
   };
 }
 
-const LINE_ICON = "path://M0,0 L24,0 L24,3 L0,3 Z";
+export const LINE_ICON = "path://M0,0 L24,0 L24,3 L0,3 Z";
 
 function refValue(values: number[], kind: string, constant?: number): number | null {
   const v = values.filter(Number.isFinite);
@@ -191,7 +192,7 @@ function refValue(values: number[], kind: string, constant?: number): number | n
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-function regression(points: [number, number][]): [number, number] | null {
+export function regression(points: [number, number][]): [number, number] | null {
   if (points.length < 3) return null;
   const n = points.length;
   const sx = points.reduce((a, p) => a + p[0], 0), sy = points.reduce((a, p) => a + p[1], 0);
@@ -751,6 +752,7 @@ async function map(cfg: ChartConfig, R: Result): Promise<Built> {
 // ------------------------------------------------------------------ entry
 export async function buildChart(type: ChartType, cfg: ChartConfig, result: QueryResult, identity: unknown[]): Promise<Built> {
   const R = new Result(result);
+  if (MORE_TYPES.has(type)) return buildMore(type, cfg, R, identity);
   switch (type) {
     case "scatter": return scatter(cfg, R, identity);
     case "heatmap": return heatmap(cfg, R);

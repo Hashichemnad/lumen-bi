@@ -3,16 +3,16 @@ import "react-resizable/css/styles.css";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, Copy, Filter, Link2, Monitor, Pencil, Plus, Settings2, Share2, Smartphone, Star, Trash2, X } from "lucide-react";
+import { ArrowLeft, Copy, Download, Filter, Link2, Monitor, Pencil, Plus, Settings2, Share2, Smartphone, Star, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout, { useContainerWidth, type Layout } from "react-grid-layout";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { Alert, Button, Input } from "../../components/ui";
 import { newId } from "../../lib/chart/types";
-import { del, get, post, put } from "../../lib/api";
+import { del, download, get, post, put } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { crossFor, decodeState, encodeState, filterSpecs, type CrossFilter, type Drill } from "../../lib/dashboard/filters";
+import { crossFor, decodeState, describeValue, encodeState, filterSpecs, isActive, type CrossFilter, type Drill } from "../../lib/dashboard/filters";
 import type { Box, DashConfig, Dashboard, DashFilter, FilterValue, Tab, Tile } from "../../lib/dashboard/types";
 import ViewDataModal from "../charts/ViewDataModal";
 import { AddTileModal, FilterModal, ShareModal, TileModal } from "./DashboardModals";
@@ -30,6 +30,32 @@ function freeSpot(items: Tile[], w: number, h: number): { x: number; y: number }
   const bottom = Math.max(0, ...items.map((i) => i.desktop.y + i.desktop.h));
   for (let y = 0; y <= bottom; y++) for (let x = 0; x + w <= 12; x++) if (!overlaps(x, y)) return { x, y };
   return { x: 0, y: bottom };
+}
+
+/** Print view (PDF/PNG export): tiles in normal page flow, each section starting on a new page. */
+function PrintGrid({ tab, render }: { tab: Tab; render: (tile: Tile, heightPx: number) => React.ReactNode }) {
+  const ordered = [...tab.items].sort((a, b) => a.desktop.y - b.desktop.y || a.desktop.x - b.desktop.x);
+  const groups: Tile[][] = [];
+  for (const t of ordered) {
+    if (t.kind === "section" || !groups.length) groups.push([t]);
+    else groups[groups.length - 1].push(t);
+  }
+  return (
+    <>
+      {groups.map((g, gi) => {
+        const y0 = Math.min(...g.map((t) => t.desktop.y));
+        return (
+          <div key={g[0].id} className="grid gap-3 pb-3" style={{ gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gridAutoRows: `${ROW_HEIGHT}px`, breakBefore: gi > 0 && g[0].kind === "section" ? "page" : "auto" }}>
+            {g.map((t) => (
+              <div key={t.id} style={{ gridColumn: `${t.desktop.x + 1} / span ${t.desktop.w}`, gridRow: `${t.desktop.y - y0 + 1} / span ${t.desktop.h}`, breakInside: "avoid" }}>
+                {render(t, tileHeight(t.desktop.h))}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 /** Phone layout made from the desktop one: tiles stacked in reading order, full width. */
@@ -84,6 +110,26 @@ function Grid({ tab, editing, device, onLayout, render }: {
       )}
     </div>
   );
+}
+
+const PRINT = new URLSearchParams(window.location.search).get("print") === "1";
+if (PRINT) (window as unknown as { __lumenPrint: boolean }).__lumenPrint = true;
+
+/** In print view, tell the renderer when every tile has finished loading and drawing. */
+function usePrintReady(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    let quiet = 0;
+    const timer = window.setInterval(() => {
+      const busy = document.querySelectorAll('[data-state="loading"]').length;
+      quiet = busy ? 0 : quiet + 1;
+      if (quiet >= 3) {
+        window.clearInterval(timer);
+        window.setTimeout(() => ((window as unknown as { __lumenReady: boolean }).__lumenReady = true), 500);
+      }
+    }, 300);
+    return () => window.clearInterval(timer);
+  }, [active]);
 }
 
 export default function DashboardPage() {
@@ -152,6 +198,10 @@ export default function DashboardPage() {
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [copied, setCopied] = useState(false);
   const [narrow, setNarrow] = useState(window.innerWidth < PHONE_WIDTH);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState<"" | "pdf" | "png">("");
+  const [exportError, setExportError] = useState("");
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < PHONE_WIDTH);
     window.addEventListener("resize", onResize);
@@ -173,6 +223,39 @@ export default function DashboardPage() {
     else next.delete("edit");
     if (next.toString() !== search.toString()) setSearch(next, { replace: true });
   }, [values, params, tabId, editing, cfg]); // eslint-disable-line react-hooks/exhaustive-deps -- search is written here
+
+  usePrintReady(PRINT && !!dash && !!cfg);
+  const sectionTiles = (tab?.items ?? [])
+    .filter((t) => t.kind === "section")
+    .sort((a, b) => a.desktop.y - b.desktop.y || a.desktop.x - b.desktop.x);
+  const goToSection = (sid: string, smooth = true) => {
+    const box = scroller.current;
+    const el = box?.querySelector(`[data-section="${sid}"]`);
+    if (!box || !el) return;
+    const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12;
+    box.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+    setActiveSection(sid);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#section-${sid}`);
+  };
+  // Highlight the section in view while scrolling
+  const onScroll = () => {
+    const box = scroller.current;
+    if (!box || !sectionTiles.length) return;
+    const limit = box.getBoundingClientRect().top + 140;
+    let current: string | null = sectionTiles[0].id;
+    for (const el of box.querySelectorAll<HTMLElement>("[data-section]")) {
+      if (el.getBoundingClientRect().top <= limit) current = el.dataset.section ?? current;
+    }
+    // Reading order on the page can differ from the list order on phones; take the nearest one above
+    if (current !== activeSection) setActiveSection(current);
+  };
+  // A link to a section opens there
+  const hashSection = window.location.hash.startsWith("#section-") ? window.location.hash.slice(9) : null;
+  useEffect(() => {
+    if (!hashSection || !dash) return;
+    const t = setTimeout(() => goToSection(hashSection, false), 700);
+    return () => clearTimeout(t);
+  }, [dash?.id, tab?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once the tab is drawn
 
   if (detail.error) return <div className="p-6"><Alert>{(detail.error as Error).message}</Alert></div>;
   if (!dash || !cfg || !tab) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
@@ -226,9 +309,20 @@ export default function DashboardPage() {
     await qc.invalidateQueries({ queryKey: ["dashboards"] });
   };
   const copyLink = async () => {
-    await navigator.clipboard?.writeText(window.location.href.replace(/[?&]edit=1/, "")).catch(() => undefined);
+    await navigator.clipboard?.writeText(window.location.href.replace(/([?&])edit=1&?/, "$1").replace(/[?&]#/, "#").replace(/[?&]$/, "")).catch(() => undefined);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+  const exportAs = async (format: "pdf" | "png") => {
+    setExporting(format);
+    setExportError("");
+    try {
+      await download(`/dashboards/${id}/render`, { format, state: search.get("s") }, `${dash.name}.${format}`);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting("");
+    }
   };
   const copyDashboard = async () => {
     const made = await post<Dashboard>(`/dashboards/${id}/copy`);
@@ -257,8 +351,33 @@ export default function DashboardPage() {
   };
   const showDevice = editing ? device : narrow ? "phone" : "desktop";
 
+  if (PRINT) {
+    const active = cfg.filters.filter((f) => isActive(f, filterValue(f)));
+    return (
+      <div className="bg-white p-4">
+        <div className="mb-3 flex items-end justify-between border-b border-slate-200 pb-2">
+          <div>
+            <h1 className="text-xl font-semibold text-slate-900">{dash.name}</h1>
+            {dash.description && <p className="text-sm text-slate-600">{dash.description}</p>}
+          </div>
+          <div className="text-end text-xs text-slate-500">
+            {cfg.tabs.length > 1 && <div>{tab.name}</div>}
+            <div>Exported {new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</div>
+          </div>
+        </div>
+        {active.length > 0 && (
+          <p className="mb-3 text-xs text-slate-600">Filters: {active.map((f) => `${f.label}: ${describeValue(f, filterValue(f))}`).join(" · ")}</p>
+        )}
+        <PrintGrid tab={tab} render={(t, heightPx) => (
+          <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
+            isCrossSource={false} actions={actions} editing={false} heightPx={heightPx} canExport={false} />
+        )} />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full overflow-y-auto bg-slate-50">
+    <div ref={scroller} onScroll={onScroll} className="h-full overflow-y-auto bg-slate-50">
       <div className="mx-auto max-w-[1600px] p-4 lg:p-6">
         {/* header */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -293,6 +412,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 <Button size="sm" variant="secondary" onClick={copyLink}><Link2 size={14} /> {copied ? "Copied" : "Copy link"}</Button>
+                <ExportMenu busy={exporting} onExport={exportAs} />
                 {dash.can_manage && <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "share" })}><Share2 size={14} /> Share</Button>}
                 {hasRole("explorer") && <Button size="sm" variant="secondary" onClick={copyDashboard}><Copy size={14} /> Copy</Button>}
                 {dash.can_manage && <Button size="sm" variant="secondary" onClick={remove} aria-label="Delete dashboard"><Trash2 size={14} /></Button>}
@@ -302,6 +422,7 @@ export default function DashboardPage() {
           </div>
         </div>
         {dash.description && !editing && <p className="-mt-1 mb-3 text-sm text-slate-600">{dash.description}</p>}
+        {exportError && <div className="mb-3"><Alert>{exportError}</Alert></div>}
 
         {/* tabs */}
         {(cfg.tabs.length > 1 || editing) && (
@@ -330,6 +451,11 @@ export default function DashboardPage() {
           editing={editing} onEditFilter={(f) => setModal({ kind: "filter", filter: f })}
           onRemoveFilter={(f) => update((c) => ({ ...c, filters: c.filters.filter((x) => x.id !== f.id) }), 0)} />
 
+        {sectionTiles.length > 0 && showDevice === "phone" && !editing && (
+          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone />
+        )}
+        <div className="flex gap-6">
+        <div className="min-w-0 flex-1">
         {!tab.items.length ? (
           <div className="rounded-xl border-2 border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">
             {editing ? (
@@ -350,6 +476,11 @@ export default function DashboardPage() {
                 canExport={hasRole("explorer")} />
             )} />
         )}
+        </div>
+        {sectionTiles.length > 0 && showDevice === "desktop" && (
+          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone={false} />
+        )}
+        </div>
         {editing && device === "phone" && <p className="mt-3 text-center text-xs text-slate-500">Arrange tiles for phones. Until you change it, phones show the tiles stacked in reading order.</p>}
       </div>
 
@@ -363,6 +494,61 @@ export default function DashboardPage() {
       {viewData && (
         <DashboardViewData dashId={id} tile={viewData.tile} title={viewData.title} filters={viewData.filters}
           params={paramsFor(tab.items.find((t) => t.id === viewData.tile) ?? tab.items[0])} onClose={() => setViewData(null)} canExport={hasRole("explorer")} />
+      )}
+    </div>
+  );
+}
+
+/** Sections of the current tab, in reading order, with the one in view highlighted. */
+function SectionNav({ sections, active, onGo, phone }: { sections: Tile[]; active: string | null; onGo: (id: string) => void; phone: boolean }) {
+  if (phone) {
+    return (
+      <div className="sticky top-0 z-20 -mx-4 mb-3 bg-slate-50/95 px-4 py-2 backdrop-blur">
+        <select value={active ?? ""} onChange={(e) => e.target.value && onGo(e.target.value)} aria-label="Go to section"
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+          {sections.map((t) => <option key={t.id} value={t.id}>{t.code ? `${t.code} · ` : ""}{t.title || "Section"}</option>)}
+        </select>
+      </div>
+    );
+  }
+  return (
+    <nav aria-label="Sections" className="sticky top-4 hidden w-56 shrink-0 self-start lg:block">
+      <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sections</div>
+      <ul className="max-h-[calc(100vh-8rem)] space-y-0.5 overflow-y-auto border-s border-slate-200">
+        {sections.map((t) => (
+          <li key={t.id}>
+            <button onClick={() => onGo(t.id)} aria-current={active === t.id ? "true" : undefined}
+              className={clsx("-ms-px block w-full border-s-2 py-1.5 pe-2 ps-3 text-start text-sm transition-colors",
+                active === t.id ? "border-brand-600 font-medium text-brand-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900")}>
+              {t.code && <span className="block text-[11px] font-semibold text-slate-400">{t.code}</span>}
+              <span className="line-clamp-2">{t.title || "Section"}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function ExportMenu({ busy, onExport }: { busy: "" | "pdf" | "png"; onExport: (f: "pdf" | "png") => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <Button size="sm" variant="secondary" onClick={() => setOpen(!open)} disabled={!!busy} aria-expanded={open}>
+        <Download size={14} /> {busy ? "Preparing…" : "Export"}
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute end-0 z-40 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
+            <button className="block w-full px-3 py-2 text-start hover:bg-slate-50" onClick={() => { setOpen(false); onExport("pdf"); }}>
+              PDF <span className="block text-xs text-slate-500">A4 landscape, a page per section</span>
+            </button>
+            <button className="block w-full px-3 py-2 text-start hover:bg-slate-50" onClick={() => { setOpen(false); onExport("png"); }}>
+              Image (PNG) <span className="block text-xs text-slate-500">The whole tab as one picture</span>
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

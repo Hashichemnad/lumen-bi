@@ -30,20 +30,44 @@ everything you see while building: you only ever chart the rows you may see.
 
 ## Chart types
 
-| Type | Use it for | Build it with |
-| --- | --- | --- |
-| Table / pivot table | exact numbers; a pivot when a dimension is on Columns | any fields |
-| Number | headline figures, with a trend line when a date is added | measures (+ a date) |
-| Bars, stacked bars | comparing values; parts of a whole | dimension + measure (+ Color) |
-| Line, area | change over time | date + measure (+ Color) |
-| Bars + line | two measures on the same scale | dimension + 2 measures |
-| Scatter | how two measures relate | measure on Columns and on Rows (+ Detail) |
-| Heat map | a grid of two dimensions | dimension on Columns, on Rows, measure |
-| Treemap, donut | share of a whole, few parts | dimension + measure (Size) |
-| Map | countries (filled) or emirates and Gulf cities (bubbles) | a place dimension + measure |
+Show Me groups the types like this. Hover a type to see what it needs; types that fit the fields on the
+shelves are enabled.
 
-Maps recognise country names and codes in English and Arabic (UAE, KSA, الإمارات…) and the seven
-emirates, Al Ain and major Gulf cities. Places they do not know are listed under the map.
+| Group | Type | Build it with |
+| --- | --- | --- |
+| Tables | Table / pivot (matrix) | any fields; a dimension on Columns makes a pivot |
+| | Number | measures (+ a date for a sparkline) |
+| | Rating | a measure shown as stars; "Full marks at" in Options (default 5); items on Rows |
+| Bars | Bars (column or bar), Stacked | dimension + measure (+ Color); measures on Columns = horizontal |
+| | Pyramid | categories on Rows; two groups on Color (e.g. gender) or two measures |
+| | Stacked pyramid | categories on Rows, a dimension on Color, two measures (one per side) |
+| Lines | Line, Area, Bars + line | date or dimension + measures (bars + line share one scale) |
+| | Parallel | 2+ measures (one axis each), items on Detail, groups on Color |
+| | Radar | 3+ measures (spokes), items on Color |
+| Dates & times | Timeline, Time bars, Time combo | a date + measures, on a true time axis with a zoom slider |
+| | Calendar | a date at Day level + a measure (one square per day) |
+| | Gantt | task on Rows; start and end dates (Exact date) on Columns; Color optional |
+| Gauges | Gauge, Ring, Progress bar | a measure; a second measure is the target, or set a maximum in Options |
+| | Bullet | actual and target measures, items on Rows |
+| Circles & dots | Donut, Scatter | as before |
+| | Dots across / Dots up | items + measures (e.g. min, average and max side by side) |
+| Grids | Heat map, Treemap | as before |
+| Maps | World map | countries (filled) or emirates and Gulf cities (bubbles) |
+| | Geo map | area names + a measure, on a map uploaded under Data → Maps |
+| Pipelines | Waterfall, Stacked waterfall | steps + a measure (+ Color for the stacked one) |
+| | Funnel | stages + a measure, with % of the first stage |
+| | Origami | a dimension on Color, a measure on Size: blocks sized by value joined by folds |
+| | Sankey | 2+ dimensions in order (from → to) and a measure |
+
+Options for these types: gauge maximum, rating full marks, show the total (waterfall, Origami), order by
+value or as sorted (funnel, Origami), and the map (Geo map).
+
+## Maps you upload
+
+**Data → Maps** (Creators): upload a GeoJSON file (up to 25 MB) of emirates, districts, communities or sales
+territories and choose the property holding each area's name. Shapefiles and TopoJSON can be converted with
+mapshaper.org. Area names are matched ignoring case and spaces. The map can then be chosen in a Geo map
+chart's Options.
 
 ## How charts look (house rules)
 
@@ -59,6 +83,8 @@ Charts follow one set of rules so they read the same everywhere:
 - Donuts are limited to 6 parts; bars compare values more exactly.
 
 ## Saved charts
+
+Export the data as CSV or Excel (formats kept: currency, percent, dates).
 
 Saving keeps the builder settings and the query. You see your own charts (admins see all); anyone who
 opens a chart can save a copy. Dashboards (milestone 9) place charts together and share them.

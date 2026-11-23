@@ -19,10 +19,10 @@ export default function ViewDataModal({ datasetId, spec, title, onClose, canExpo
     queryKey: ["view-data", endpoint ?? datasetId, JSON.stringify(spec)],
     queryFn: () => post<QueryResult>(endpoint ?? "/query", body),
   });
-  const exportCsv = async () => {
+  const exportCsv = async (format: "csv" | "xlsx" = "csv") => {
     setError("");
     try {
-      await download(exportEndpoint ?? "/query/export", { ...body, limit: undefined }, "data.csv");
+      await download(exportEndpoint ?? "/query/export", { ...body, limit: undefined, format }, `data.${format}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     }
@@ -31,7 +31,8 @@ export default function ViewDataModal({ datasetId, spec, title, onClose, canExpo
   return (
     <Modal open wide title={title} onClose={onClose}
       footer={<>
-        {canExport && <Button variant="secondary" onClick={exportCsv}><Download size={16} /> Export CSV</Button>}
+        {canExport && <Button variant="secondary" onClick={() => exportCsv("csv")}><Download size={16} /> CSV</Button>}
+        {canExport && <Button variant="secondary" onClick={() => exportCsv("xlsx")}><Download size={16} /> Excel</Button>}
         <Button onClick={onClose}>Close</Button>
       </>}>
       {(error || rows.error) && <Alert>{error || (rows.error as Error).message}</Alert>}

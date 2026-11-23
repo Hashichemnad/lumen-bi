@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     query_timeout_seconds: int = 60
     duckdb_memory_limit: str = ""  # e.g. "8GB"; empty = DuckDB default (80% of RAM)
     duckdb_threads: int = 0  # 0 = all cores
+    # Where the renderer (headless Chromium, PDF/PNG exports) opens the web app. In Docker: Caddy's internal
+    # listener; in development the Vite server.
+    render_base_url: str = "http://localhost:5173"
+    render_timeout_seconds: int = 120
+    render_chrome_path: str = ""  # empty = Playwright's own Chromium (installed in the Docker image)
     # Result cache: "redis" (uses redis_url), "memory" (per process), "off"
     cache_backend: str = "redis"
     cache_seconds: int = 3600

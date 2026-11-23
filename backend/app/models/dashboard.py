@@ -10,7 +10,8 @@ from app.models.common import JSONType, UTCDateTime, utcnow
 class Dashboard(Base):
     """A dashboard: tabs of tiles (charts, text, images, web pages) on a grid, with filters for all of them.
 
-    config: {"tabs": [{"id", "name", "items": [{"id", "kind": "chart"|"text"|"image"|"web", "chart_id",
+    config: {"tabs": [{"id", "name", "items": [{"id", "kind": "chart"|"text"|"image"|"web"|"section",
+             "chart_id", "code",
              "title", "text", "url", "alt", "desktop": {"x","y","w","h"}, "phone": {...} | null}]}],
              "filters": [{"id", "label", "kind", "control", "targets": [{"dataset", "field"}], "value",
                           "grain"}],
