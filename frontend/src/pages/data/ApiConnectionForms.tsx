@@ -6,6 +6,7 @@ import KeyValueEditor, { toMap, toRows, type Row } from "../../components/KeyVal
 import { Alert, Button, Field, Input, Modal, Select } from "../../components/ui";
 import { post, put } from "../../lib/api";
 import type { Connection } from "../../lib/types";
+import { t } from "../../lib/i18n";
 
 type Values = Record<string, string>;
 
@@ -36,7 +37,7 @@ function ConnectionShell({
     try {
       setTest(await post("/connections/test", { ...body(), connection_id: existing?.id ?? null }));
     } catch (err) {
-      setTest({ ok: false, message: err instanceof Error ? err.message : "Test failed" });
+      setTest({ ok: false, message: err instanceof Error ? err.message : t("Test failed") });
     } finally {
       setTesting(false);
     }
@@ -53,16 +54,16 @@ function ConnectionShell({
       onSaved?.(saved);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
 
   return (
     <Modal open wide title={title} onClose={onClose}
       footer={<>
-        <Button variant="secondary" className="mr-auto" onClick={runTest} disabled={testing}>{testing ? "Testing…" : "Test connection"}</Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={save}>Save</Button>
+        <Button variant="secondary" className="me-auto" onClick={runTest} disabled={testing}>{testing ? t("Testing…") : t("Test connection")}</Button>
+        <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={save}>{t("Save")}</Button>
       </>}>
       {error && <Alert>{error}</Alert>}
       {test && (
@@ -70,7 +71,7 @@ function ConnectionShell({
           {test.ok ? <CheckCircle2 size={18} /> : <XCircle size={18} />} {test.message}
         </div>
       )}
-      <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+      <Field label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
       {children}
     </Modal>
   );
@@ -100,7 +101,7 @@ export function SalesforceConnectionModal({ existing, onClose, onSaved }: { exis
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   return (
-    <ConnectionShell title={existing ? `Edit ${existing.name}` : "New Salesforce connection"} type="salesforce"
+    <ConnectionShell title={existing ? `Edit ${existing.name}` : t("New Salesforce connection")} type="salesforce"
       existing={existing} name={name} setName={setName} onClose={onClose} onSaved={onSaved}
       buildConfig={() => ({
         auth: f.auth, domain_url: f.domain_url, client_id: f.client_id, username: f.username,
@@ -108,48 +109,46 @@ export function SalesforceConnectionModal({ existing, onClose, onSaved }: { exis
       })}
       buildSecrets={() => pickSecrets(existing, f, f.auth === "jwt" ? ["private_key"] : ["client_secret"])}>
       <Alert tone="blue">
-        In Salesforce Setup, create a connected app (or external client app) with the <b>api</b> scope. For client
-        credentials, tick <b>Enable Client Credentials Flow</b> and choose a <b>Run As</b> integration user with
-        read access to the objects you need. See docs/CONNECTORS.md for step-by-step instructions.
+        {t("In Salesforce Setup, create a connected app (or external client app) with the")} <b>{t("api")}</b> {t("scope. For client credentials, tick")} <b>{t("Enable Client Credentials Flow")}</b> {t("and choose a")} <b>{t("Run As")}</b> {t("integration user with read access to the objects you need. See docs/CONNECTORS.md for step-by-step instructions.")}
       </Alert>
-      <Field label="My Domain URL" hint="Setup → My Domain. Sandboxes look like yourcompany--uat.sandbox.my.salesforce.com.">
-        <Input placeholder="https://yourcompany.my.salesforce.com" value={f.domain_url} onChange={(e) => set("domain_url", e.target.value)} />
+      <Field label={t("My Domain URL")} hint={t("Setup → My Domain. Sandboxes look like yourcompany--uat.sandbox.my.salesforce.com.")}>
+        <Input placeholder={t("https://yourcompany.my.salesforce.com")} value={f.domain_url} onChange={(e) => set("domain_url", e.target.value)} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Sign-in method">
+        <Field label={t("Sign-in method")}>
           <Select value={f.auth} onChange={(e) => set("auth", e.target.value)}>
-            <option value="client_credentials">Client credentials (recommended)</option>
-            <option value="jwt">JWT bearer (certificate)</option>
+            <option value="client_credentials">{t("Client credentials (recommended)")}</option>
+            <option value="jwt">{t("JWT bearer (certificate)")}</option>
           </Select>
         </Field>
-        <Field label="Consumer key (client ID)"><Input value={f.client_id} onChange={(e) => set("client_id", e.target.value)} /></Field>
+        <Field label={t("Consumer key (client ID)")}><Input value={f.client_id} onChange={(e) => set("client_id", e.target.value)} /></Field>
       </div>
       {f.auth === "client_credentials" ? (
-        <Field label="Consumer secret" hint={secretHint(existing, "client_secret")}>
+        <Field label={t("Consumer secret")} hint={secretHint(existing, "client_secret")}>
           <Input type="password" autoComplete="new-password" value={f.client_secret}
             placeholder={existing?.secrets_set.includes("client_secret") ? "••••••••" : ""} onChange={(e) => set("client_secret", e.target.value)} />
         </Field>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Integration username"><Input placeholder="integration@company.com" value={f.username} onChange={(e) => set("username", e.target.value)} /></Field>
-            <Field label="Org type">
+            <Field label={t("Integration username")}><Input placeholder={t("integration@company.com")} value={f.username} onChange={(e) => set("username", e.target.value)} /></Field>
+            <Field label={t("Org type")}>
               <Select value={f.sandbox} onChange={(e) => set("sandbox", e.target.value)}>
-                <option value="">Production / Developer</option>
-                <option value="yes">Sandbox</option>
+                <option value="">{t("Production / Developer")}</option>
+                <option value="yes">{t("Sandbox")}</option>
               </Select>
             </Field>
           </div>
-          <Field label="Private key (PEM)" hint={secretHint(existing, "private_key")}>
+          <Field label={t("Private key (PEM)")} hint={secretHint(existing, "private_key")}>
             <textarea className="block h-28 w-full rounded-lg border border-slate-300 p-2 font-mono text-xs"
-              placeholder={existing?.secrets_set.includes("private_key") ? "Stored. Paste a new key to replace it." : "-----BEGIN PRIVATE KEY-----"}
+              placeholder={existing?.secrets_set.includes("private_key") ? t("Stored. Paste a new key to replace it.") : t("-----BEGIN PRIVATE KEY-----")}
               value={f.private_key} onChange={(e) => set("private_key", e.target.value)} />
           </Field>
         </>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="API version (optional)" hint="Empty = the newest your org supports."><Input placeholder="66.0" value={f.api_version} onChange={(e) => set("api_version", e.target.value)} /></Field>
-        <Field label="Use Bulk API from (rows)" hint="Large objects are read with Bulk API 2.0."><Input value={f.bulk_threshold} onChange={(e) => set("bulk_threshold", e.target.value)} /></Field>
+        <Field label={t("API version (optional)")} hint={t("Empty = the newest your org supports.")}><Input placeholder="66.0" value={f.api_version} onChange={(e) => set("api_version", e.target.value)} /></Field>
+        <Field label={t("Use Bulk API from (rows)")} hint={t("Large objects are read with Bulk API 2.0.")}><Input value={f.bulk_threshold} onChange={(e) => set("bulk_threshold", e.target.value)} /></Field>
       </div>
     </ConnectionShell>
   );
@@ -176,117 +175,117 @@ export function RestConnectionModal({ existing, onClose, onSaved }: { existing?:
   const secretFor: Record<string, string> = { api_key: "api_key", bearer: "token", basic: "password", oauth2: "client_secret" };
 
   return (
-    <ConnectionShell title={existing ? `Edit ${existing.name}` : "New REST API connection"} type="rest"
+    <ConnectionShell title={existing ? `Edit ${existing.name}` : t("New REST API connection")} type="rest"
       existing={existing} name={name} setName={setName} onClose={onClose} onSaved={onSaved}
       buildConfig={() => ({ ...Object.fromEntries(Object.entries(f).filter(([k]) => !["api_key", "token", "password", "client_secret"].includes(k))),
         endpoints: f.endpoints.split("\n").map((e) => e.trim()).filter(Boolean), headers: toMap(headers) })}
       buildSecrets={() => pickSecrets(existing, f, secretFor[f.auth] ? [secretFor[f.auth]] : [])}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Base URL"><Input placeholder="https://api.example.com" value={f.base_url} onChange={(e) => set("base_url", e.target.value)} /></Field>
-        <Field label="Records are at (path in the response)" hint='e.g. data.items · empty if the response is the list itself'>
-          <Input placeholder="data" value={f.records_path} onChange={(e) => set("records_path", e.target.value)} />
+        <Field label={t("Base URL")}><Input placeholder={t("https://api.example.com")} value={f.base_url} onChange={(e) => set("base_url", e.target.value)} /></Field>
+        <Field label={t("Records are at (path in the response)")} hint={t("e.g. data.items · empty if the response is the list itself")}>
+          <Input placeholder={t("data")} value={f.records_path} onChange={(e) => set("records_path", e.target.value)} />
         </Field>
       </div>
-      <Field label="Endpoints (one per line)" hint="Each becomes a choice when creating a dataset. Query strings are allowed: /v1/orders?status=open">
+      <Field label={t("Endpoints (one per line)")} hint={t("Each becomes a choice when creating a dataset. Query strings are allowed: /v1/orders?status=open")}>
         <textarea className="block h-20 w-full rounded-lg border border-slate-300 p-2 font-mono text-sm" placeholder={"/v1/orders\n/v1/customers"}
           value={f.endpoints} onChange={(e) => set("endpoints", e.target.value)} />
       </Field>
 
       <div className="space-y-3 border-t border-slate-200 pt-4">
-        <Field label="Sign-in">
+        <Field label={t("Sign-in")}>
           <Select value={f.auth} onChange={(e) => set("auth", e.target.value)}>
-            <option value="none">None</option>
-            <option value="api_key">API key</option>
-            <option value="bearer">Bearer token</option>
-            <option value="basic">Username and password (Basic)</option>
-            <option value="oauth2">OAuth 2.0 client credentials</option>
+            <option value="none">{t("None")}</option>
+            <option value="api_key">{t("API key")}</option>
+            <option value="bearer">{t("Bearer token")}</option>
+            <option value="basic">{t("Username and password (Basic)")}</option>
+            <option value="oauth2">{t("OAuth 2.0 client credentials")}</option>
           </Select>
         </Field>
         {f.auth === "api_key" && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Key name"><Input value={f.api_key_name} onChange={(e) => set("api_key_name", e.target.value)} /></Field>
-            <Field label="Sent in">
+            <Field label={t("Key name")}><Input value={f.api_key_name} onChange={(e) => set("api_key_name", e.target.value)} /></Field>
+            <Field label={t("Sent in")}>
               <Select value={f.api_key_in} onChange={(e) => set("api_key_in", e.target.value)}>
-                <option value="header">Header</option><option value="query">Query parameter</option>
+                <option value="header">{t("Header")}</option><option value="query">{t("Query parameter")}</option>
               </Select>
             </Field>
-            <Field label="API key" hint={secretHint(existing, "api_key")}><Input type="password" value={f.api_key} onChange={(e) => set("api_key", e.target.value)} /></Field>
+            <Field label={t("API key")} hint={secretHint(existing, "api_key")}><Input type="password" value={f.api_key} onChange={(e) => set("api_key", e.target.value)} /></Field>
           </div>
         )}
         {f.auth === "bearer" && (
-          <Field label="Token" hint={secretHint(existing, "token")}><Input type="password" value={f.token} onChange={(e) => set("token", e.target.value)} /></Field>
+          <Field label={t("Token")} hint={secretHint(existing, "token")}><Input type="password" value={f.token} onChange={(e) => set("token", e.target.value)} /></Field>
         )}
         {f.auth === "basic" && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Username"><Input value={f.username} onChange={(e) => set("username", e.target.value)} /></Field>
-            <Field label="Password" hint={secretHint(existing, "password")}><Input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} /></Field>
+            <Field label={t("Username")}><Input value={f.username} onChange={(e) => set("username", e.target.value)} /></Field>
+            <Field label={t("Password")} hint={secretHint(existing, "password")}><Input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} /></Field>
           </div>
         )}
         {f.auth === "oauth2" && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Token URL"><Input placeholder="https://auth.example.com/oauth/token" value={f.token_url} onChange={(e) => set("token_url", e.target.value)} /></Field>
-            <Field label="Scope (optional)"><Input value={f.scope} onChange={(e) => set("scope", e.target.value)} /></Field>
-            <Field label="Client ID"><Input value={f.client_id} onChange={(e) => set("client_id", e.target.value)} /></Field>
-            <Field label="Client secret" hint={secretHint(existing, "client_secret")}><Input type="password" value={f.client_secret} onChange={(e) => set("client_secret", e.target.value)} /></Field>
+            <Field label={t("Token URL")}><Input placeholder={t("https://auth.example.com/oauth/token")} value={f.token_url} onChange={(e) => set("token_url", e.target.value)} /></Field>
+            <Field label={t("Scope (optional)")}><Input value={f.scope} onChange={(e) => set("scope", e.target.value)} /></Field>
+            <Field label={t("Client ID")}><Input value={f.client_id} onChange={(e) => set("client_id", e.target.value)} /></Field>
+            <Field label={t("Client secret")} hint={secretHint(existing, "client_secret")}><Input type="password" value={f.client_secret} onChange={(e) => set("client_secret", e.target.value)} /></Field>
           </div>
         )}
       </div>
 
       <div className="space-y-3 border-t border-slate-200 pt-4">
-        <Field label="Pages">
+        <Field label={t("Pages")}>
           <Select value={f.pagination} onChange={(e) => set("pagination", e.target.value)}>
-            <option value="none">Everything in one response</option>
-            <option value="page">Page number (?page=2)</option>
-            <option value="offset">Offset and limit (?offset=100&limit=100)</option>
-            <option value="cursor">Cursor from the response</option>
-            <option value="next_link">Next-page URL in the response</option>
-            <option value="link_header">Link header (rel="next")</option>
+            <option value="none">{t("Everything in one response")}</option>
+            <option value="page">{t("Page number (?page=2)")}</option>
+            <option value="offset">{t("Offset and limit (?offset=100&limit=100)")}</option>
+            <option value="cursor">{t("Cursor from the response")}</option>
+            <option value="next_link">{t("Next-page URL in the response")}</option>
+            <option value="link_header">{t("Link header (rel=\"next\")")}</option>
           </Select>
         </Field>
         {f.pagination === "page" && (
           <div className="grid gap-4 sm:grid-cols-4">
-            <Field label="Page parameter"><Input value={f.page_param} onChange={(e) => set("page_param", e.target.value)} /></Field>
-            <Field label="Size parameter"><Input placeholder="per_page" value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
-            <Field label="Page size"><Input value={f.page_size} onChange={(e) => set("page_size", e.target.value)} /></Field>
-            <Field label="First page"><Input value={f.first_page} onChange={(e) => set("first_page", e.target.value)} /></Field>
+            <Field label={t("Page parameter")}><Input value={f.page_param} onChange={(e) => set("page_param", e.target.value)} /></Field>
+            <Field label={t("Size parameter")}><Input placeholder={t("per_page")} value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
+            <Field label={t("Page size")}><Input value={f.page_size} onChange={(e) => set("page_size", e.target.value)} /></Field>
+            <Field label={t("First page")}><Input value={f.first_page} onChange={(e) => set("first_page", e.target.value)} /></Field>
           </div>
         )}
         {f.pagination === "offset" && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Offset parameter"><Input value={f.offset_param} onChange={(e) => set("offset_param", e.target.value)} /></Field>
-            <Field label="Limit parameter"><Input placeholder="limit" value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
-            <Field label="Page size"><Input value={f.page_size} onChange={(e) => set("page_size", e.target.value)} /></Field>
+            <Field label={t("Offset parameter")}><Input value={f.offset_param} onChange={(e) => set("offset_param", e.target.value)} /></Field>
+            <Field label={t("Limit parameter")}><Input placeholder={t("limit")} value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
+            <Field label={t("Page size")}><Input value={f.page_size} onChange={(e) => set("page_size", e.target.value)} /></Field>
           </div>
         )}
         {f.pagination === "cursor" && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Next cursor is at"><Input placeholder="meta.next_cursor" value={f.cursor_path} onChange={(e) => set("cursor_path", e.target.value)} /></Field>
-            <Field label="Cursor parameter"><Input value={f.cursor_param} onChange={(e) => set("cursor_param", e.target.value)} /></Field>
-            <Field label="Size parameter (optional)"><Input placeholder="limit" value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
+            <Field label={t("Next cursor is at")}><Input placeholder={t("meta.next_cursor")} value={f.cursor_path} onChange={(e) => set("cursor_path", e.target.value)} /></Field>
+            <Field label={t("Cursor parameter")}><Input value={f.cursor_param} onChange={(e) => set("cursor_param", e.target.value)} /></Field>
+            <Field label={t("Size parameter (optional)")}><Input placeholder={t("limit")} value={f.size_param} onChange={(e) => set("size_param", e.target.value)} /></Field>
           </div>
         )}
         {f.pagination === "next_link" && (
-          <Field label="Next-page URL is at"><Input placeholder="links.next" value={f.next_path} onChange={(e) => set("next_path", e.target.value)} /></Field>
+          <Field label={t("Next-page URL is at")}><Input placeholder={t("links.next")} value={f.next_path} onChange={(e) => set("next_path", e.target.value)} /></Field>
         )}
         {f.pagination !== "none" && (
-          <Field label="Stop after (pages)" hint="Safety limit against endless paging."><Input value={f.max_pages} onChange={(e) => set("max_pages", e.target.value)} /></Field>
+          <Field label={t("Stop after (pages)")} hint={t("Safety limit against endless paging.")}><Input value={f.max_pages} onChange={(e) => set("max_pages", e.target.value)} /></Field>
         )}
       </div>
 
       <div className="grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
-        <Field label="'Changed since' parameter (optional)" hint="Enables incremental sync, e.g. updated_since.">
+        <Field label={t("'Changed since' parameter (optional)")} hint={t("Enables incremental sync, e.g. updated_since.")}>
           <Input value={f.since_param} onChange={(e) => set("since_param", e.target.value)} />
         </Field>
-        <Field label="Its format">
+        <Field label={t("Its format")}>
           <Select value={f.since_format} onChange={(e) => set("since_format", e.target.value)}>
             <option value="iso">2026-01-31T08:00:00Z</option>
             <option value="date">2026-01-31</option>
-            <option value="epoch">Unix seconds</option>
-            <option value="epoch_ms">Unix milliseconds</option>
+            <option value="epoch">{t("Unix seconds")}</option>
+            <option value="epoch_ms">{t("Unix milliseconds")}</option>
           </Select>
         </Field>
       </div>
-      <Field label="Extra headers (optional)" hint="Not for credentials: use the sign-in settings above, which are encrypted.">
+      <Field label={t("Extra headers (optional)")} hint={t("Not for credentials: use the sign-in settings above, which are encrypted.")}>
         <KeyValueEditor rows={headers} onChange={setHeaders} keyPlaceholder="Header" valuePlaceholder="Value" addLabel="Add header" />
       </Field>
     </ConnectionShell>

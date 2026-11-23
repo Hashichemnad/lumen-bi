@@ -1,0 +1,73 @@
+# Look, language, calendar, workspaces and TV screens
+
+## Themes
+
+| Theme | For |
+| --- | --- |
+| Classic (default) | Light and calm, with roomy cards |
+| Advanced | Dark, with large numbers; good for control rooms and TV screens |
+| Analyst | Compact and dense, like analyst tools (Tableau-style: square corners, blue and green field pills) |
+
+Admins choose the default for everyone in **Admin → Settings**. Each person can choose their own in
+**My account → Appearance**, or go back to the organisation's default.
+
+For developers: screens use the `slate`, `brand` and status colour scales of Tailwind; each theme redefines
+them in `frontend/src/index.css` (`:root[data-theme="…"]`). Charts take their colours from
+`frontend/src/lib/chart/palette.ts`, which switches to the dark steps of the same palette in the Advanced
+theme. Do not use fixed hex colours in screens.
+
+## Arabic
+
+Choose **العربية** in My account (or on the sign-in page). The whole interface turns right to left, with
+Arabic labels, month and day names; numbers use Western digits, as is usual in the UAE. Dashboards are mirrored.
+Names people type (dashboards, charts, fields) are shown as written.
+
+For developers: write English text in `t("…")` and add the Arabic to `frontend/src/lib/i18n/ar.ts`. Use
+placeholders for values: `t("Synced {when}", { when })`. Use logical classes (`ms-`, `pe-`, `start-`,
+`text-start`, `border-s`) instead of left/right.
+
+## Calendar (Admin → Settings)
+
+- **Show dates as** Gregorian, Hijri (Umm al-Qura) or both. People can choose their own.
+- **Week starts on**: used for "week" in charts and for "This week" filters (UAE: Monday).
+- **Weekend**: shaded in calendar charts (UAE: Saturday and Sunday).
+- **Fiscal year starts in**: adds the date levels *Fiscal year* and *Fiscal quarter* in the chart builder
+  (pill menu) and the filters *This fiscal quarter*, *This fiscal year* and *Last 2 fiscal years*. A fiscal
+  year is named by the year it ends in: July 2026 – June 2027 is FY2027.
+
+Charts group by Gregorian periods; Hijri is used for how dates are shown.
+
+## Workspaces
+
+A workspace is a shared place for a team's dashboards and charts (for example Operations, Finance).
+
+| Role | Can |
+| --- | --- |
+| Viewer | Open the dashboards and charts |
+| Editor | Also change them and add new ones |
+| Manager | Also delete and share them, and manage the members |
+
+- Admins create and delete workspaces. Deleting one keeps its dashboards and charts as personal items of their
+  owners.
+- Members can be people or groups. People with the Viewer role are always viewers.
+- Membership never gives access to data: everyone still sees only the rows their row-level security allows.
+- Pick a workspace in the side menu to see only its items; new dashboards and charts go into it.
+- Move an item with **More → Move to a workspace** (dashboards) or the folder button (charts).
+
+## Presentation and TV modes
+
+On a dashboard, **Present** shows one section (or tab) per slide, filling the screen. Use the arrow keys,
+space or the buttons; Esc leaves.
+
+**TV mode** is for screens on a wall: slides move on by themselves, the data refreshes, and a clock shows when
+the data was refreshed. Open the link with options:
+
+```
+https://lumen.example.ae/dashboards/12?tv=1&cycle=30&refresh=5
+```
+
+- `cycle`: seconds per slide (at least 10, default 30)
+- `refresh`: minutes between data refreshes (default 5)
+
+Sign the screen in with a user that has the Viewer role and access to the dashboard. Screens without a
+sign-in come with signed embedding (milestone 12).

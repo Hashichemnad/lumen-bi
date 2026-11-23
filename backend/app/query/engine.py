@@ -31,7 +31,7 @@ from app.query.rls import Params, Principal
 from app.query.spec import Dimension, Filter, Measure, QuerySpec, TableCalc
 from app.semantic import model
 from app.semantic.formula import NUMERIC, Context, FormulaError
-from app.services import snapshots
+from app.services import settings, snapshots
 
 DEFAULT_LIMIT = 5000
 DATE_TYPES = {"date", "datetime"}
@@ -69,6 +69,7 @@ CALC_LABEL = {
 }
 PART_SQL = {"weekday": "isodow"}
 INTERVAL_UNIT = {"day": "DAY", "week": "WEEK", "month": "MONTH", "quarter": "MONTH", "year": "YEAR"}
+GRAIN_LABEL = {"fiscal_year": "Fiscal year", "fiscal_quarter": "Fiscal quarter"}
 
 
 class QueryError(Exception):
@@ -140,6 +141,7 @@ class _Builder:
         except FormulaError as exc:
             raise QueryError(exc.message) from exc
         self.params = Params()
+        self.calendar = settings.regional(db)
         rls_sql, self.rule_results = rls.evaluate(db, ds, principal, self.ctx, self.params)
         self.restricted = rls_sql is not None
         self.base = f"base AS (SELECT * FROM read_parquet({snapshots._lit(path)}) WHERE {rls_sql or 'TRUE'})"
@@ -169,13 +171,36 @@ class _Builder:
         if grain:
             if typ == "date" and grain in {"hour", "minute"}:
                 raise QueryError(f"[{self.field_name(name)}] has no time of day")
-            trunc = f"date_trunc('{grain}', {sql})"
             if grain in {"hour", "minute"}:
-                return f"CAST({trunc} AS TIMESTAMP)", "datetime"
-            return f"CAST({trunc} AS DATE)", "date"
+                return f"CAST(date_trunc('{grain}', {sql}) AS TIMESTAMP)", "datetime"
+            return self.period_start(grain, sql), "date"
         if part:
+            off = self.calendar.fiscal_year_start - 1
+            shifted = f"(CAST({sql} AS DATE) - INTERVAL {off} MONTH)"
+            if part == "fiscal_year":
+                # Named by the year it ends in: a year starting July 2026 is fiscal year 2027
+                return f"CAST(year({shifted}) AS INTEGER) + {1 if off else 0}", "integer"
+            if part == "fiscal_quarter":
+                return f"CAST(quarter({shifted}) AS INTEGER)", "integer"
             return f"CAST(date_part('{PART_SQL.get(part, part)}', {sql}) AS INTEGER)", "integer"
         return sql, typ
+
+    def period_start(self, unit: str, sql: str) -> str:
+        """The first day of the period (week, month, fiscal year…) a date is in, as a DATE."""
+        if unit == "week":
+            ws = self.calendar.week_start
+            day = f"CAST({sql} AS DATE)"
+            if ws == 1:
+                return f"CAST(date_trunc('week', {day}) AS DATE)"
+            return f"CAST({day} - CAST((isodow({day}) - {ws} + 7) % 7 AS INTEGER) AS DATE)"
+        if unit in {"fiscal_year", "fiscal_quarter"}:
+            off = self.calendar.fiscal_year_start - 1
+            base = "year" if unit == "fiscal_year" else "quarter"
+            return (
+                f"CAST(date_trunc('{base}', CAST({sql} AS DATE) - INTERVAL {off} MONTH) "
+                f"+ INTERVAL {off} MONTH AS DATE)"
+            )
+        return f"CAST(date_trunc('{unit}', {sql}) AS DATE)"
 
     def measure_expr(self, m: Measure) -> tuple[str, str, str | None]:
         """(SQL, type, aggregation used or None for an aggregate field)."""
@@ -231,9 +256,14 @@ class _Builder:
             if not f.unit or not f.n:
                 raise QueryError("Choose the period for the relative date filter")
             unit, n = f.unit, int(f.n)
-            step = 3 if unit == "quarter" else 1
-            start = f"date_trunc('{unit}', current_date) - INTERVAL {(n - 1) * step} {INTERVAL_UNIT[unit]}"
-            end = f"date_trunc('{unit}', current_date) + INTERVAL {step} {INTERVAL_UNIT[unit]}"
+            step, interval = {
+                "quarter": (3, "MONTH"),
+                "fiscal_quarter": (3, "MONTH"),
+                "fiscal_year": (12, "MONTH"),
+            }.get(unit, (1, INTERVAL_UNIT.get(unit, "DAY")))
+            now = self.period_start(unit, "current_date")
+            start = f"{now} - INTERVAL {(n - 1) * step} {interval}"
+            end = f"{now} + INTERVAL {step} {interval}"
             return f"({expr} >= {start} AND {expr} < {end})"
         if op in {"contains", "not_contains", "starts_with", "ends_with"}:
             if not values or values[0] in (None, ""):
@@ -384,7 +414,8 @@ class _Builder:
             select.append(f"{expr} AS {col}")
             label = self.label(real)
             if d.grain or d.part:
-                label += f" ({(d.grain or d.part or '').capitalize()})"
+                level = d.grain or d.part or ""
+                label += f" ({GRAIN_LABEL.get(level, level.capitalize())})"
             fmt = (
                 {"type": "number", "decimals": 0, "plain": True}
                 if d.part

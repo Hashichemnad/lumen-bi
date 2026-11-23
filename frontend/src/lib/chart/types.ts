@@ -2,8 +2,9 @@ import type { Field, FieldFormat, Hierarchy, Parameter } from "../types";
 
 export type Agg =
   | "sum" | "avg" | "count" | "count_distinct" | "min" | "max" | "median" | "percentile" | "stdev" | "var";
-export type Grain = "year" | "quarter" | "month" | "week" | "day" | "hour" | "minute";
-export type Part = "year" | "quarter" | "month" | "week" | "weekday" | "day" | "hour";
+export type Grain = "fiscal_year" | "fiscal_quarter" | "year" | "quarter" | "month" | "week" | "day" | "hour" | "minute";
+export type Part = "fiscal_year" | "fiscal_quarter" | "year" | "quarter" | "month" | "week" | "weekday" | "day" | "hour";
+export type DateUnit = "day" | "week" | "month" | "quarter" | "year" | "fiscal_quarter" | "fiscal_year";
 export type CalcType = "running_total" | "pct_total" | "difference" | "pct_change" | "rank" | "moving_avg";
 export type ShelfName = "columns" | "rows" | "color" | "size" | "label" | "tooltip" | "detail";
 export type ChartType =
@@ -48,7 +49,7 @@ export interface FilterPill {
   max?: number | string | null;
   agg?: Agg;
   // relative dates
-  unit?: "day" | "week" | "month" | "quarter" | "year";
+  unit?: DateUnit;
   n?: number;
   // top / bottom N
   top?: "top" | "bottom";
@@ -123,6 +124,9 @@ export interface SavedChart {
   created_at: string;
   updated_at: string;
   can_edit: boolean;
+  workspace_id: number | null;
+  workspace_name: string;
+  level: "view" | "edit" | "manage";
 }
 
 export const SHELVES: ShelfName[] = ["columns", "rows", "color", "size", "label", "tooltip", "detail"];

@@ -1,7 +1,8 @@
 """Dashboards: tiles of charts, text, images and web pages with shared filters; sharing and favourites.
 
-Anyone can open the dashboards shared with them (Viewers too). Explorers and up create dashboards; the owner
-or an admin manages sharing; people given "edit" can change the layout.
+Anyone can open the dashboards shared with them (Viewers too). Explorers and up create dashboards; the owner,
+an admin or a manager of its workspace manages sharing; people given "edit" (or editors of its workspace) can
+change the layout.
 """
 
 import base64
@@ -31,6 +32,7 @@ from app.models import (
     Parameter,
     Role,
     User,
+    Workspace,
 )
 from app.query import duck, engine, rls
 from app.schemas import (
@@ -38,10 +40,11 @@ from app.schemas import (
     DashboardQueryIn,
     DashboardSharing,
     DashboardSummary,
+    MoveIn,
     ShareEntry,
 )
 from app.semantic import model
-from app.services import audit, excel, render
+from app.services import audit, excel, render, workspaces
 from app.services import dashboards as svc
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
@@ -66,6 +69,7 @@ def _favorites(db: Session, user: User) -> set[int]:
 
 def _summary(db: Session, d: Dashboard, level: str, favs: set[int]) -> DashboardSummary:
     owner = db.get(User, d.owner_id) if d.owner_id else None
+    ws = db.get(Workspace, d.workspace_id) if d.workspace_id else None
     shared = (
         db.scalar(select(DashboardShare.id).where(DashboardShare.dashboard_id == d.id).limit(1)) is not None
     )
@@ -80,7 +84,21 @@ def _summary(db: Session, d: Dashboard, level: str, favs: set[int]) -> Dashboard
         level=level,
         shared=shared,
         tiles=len(svc.items(d.config or {})),
+        workspace_id=d.workspace_id,
+        workspace_name=ws.name if ws else "",
+        layout=_layout(d.config or {}),
     )
+
+
+def _layout(config: dict) -> list[dict]:
+    """The first tab's tiles as boxes, for a small picture of the dashboard in lists."""
+    tabs = config.get("tabs") or []
+    out = []
+    for item in (tabs[0].get("items", []) if tabs else [])[:40]:
+        box = item.get("desktop") or {}
+        if all(k in box for k in ("x", "y", "w", "h")):
+            out.append({"kind": item.get("kind", "chart"), **{k: box[k] for k in ("x", "y", "w", "h")}})
+    return out
 
 
 def _detail(db: Session, d: Dashboard, level: str, user: User) -> dict:
@@ -93,7 +111,7 @@ def _detail(db: Session, d: Dashboard, level: str, user: User) -> dict:
                 "name": c.name,
                 "dataset_id": c.dataset_id,
                 "config": c.config,
-                "can_edit": user.has_role(Role.admin) or c.owner_id == user.id,
+                "can_edit": svc.chart_level(db, user, c) in {"edit", "manage"},
             }
     datasets = {}
     for ds in svc.datasets_of(db, d):
@@ -101,6 +119,8 @@ def _detail(db: Session, d: Dashboard, level: str, user: User) -> dict:
         datasets[ds.id] = {
             "id": ds.id,
             "name": ds.name,
+            "last_synced_at": ds.last_synced_at.isoformat() if ds.last_synced_at else None,
+            "last_status": ds.last_status,
             "fields": [
                 {
                     "name": f.name,
@@ -139,11 +159,27 @@ def _detail(db: Session, d: Dashboard, level: str, user: User) -> dict:
 
 
 # ------------------------------------------------------------------ list, create, open, change, delete
+def _check_workspace(db: Session, user: User, workspace_id: int | None) -> None:
+    if workspace_id is None:
+        return
+    if db.get(Workspace, workspace_id) is None or not workspaces.can_add_to(db, user, workspace_id):
+        raise HTTPException(403, "You can add items only to workspaces where you are an editor or manager")
+
+
 @router.get("", response_model=list[DashboardSummary])
-def list_dashboards(db: Session = Depends(get_db), user: User = Depends(current_user)):
+def list_dashboards(
+    workspace_id: int | None = None,  # 0 = personal (not in a workspace)
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     favs = _favorites(db, user)
     out = []
-    for d in db.scalars(select(Dashboard).order_by(Dashboard.updated_at.desc())):
+    stmt = select(Dashboard).order_by(Dashboard.updated_at.desc())
+    if workspace_id is not None:
+        stmt = stmt.where(
+            Dashboard.workspace_id == workspace_id if workspace_id else Dashboard.workspace_id.is_(None)
+        )
+    for d in db.scalars(stmt):
         level = svc.share_level(db, user, d)
         if level:
             out.append(_summary(db, d, level, favs))
@@ -154,11 +190,18 @@ def list_dashboards(db: Session = Depends(get_db), user: User = Depends(current_
 def create_dashboard(
     body: DashboardIn, request: Request, db: Session = Depends(get_db), user: User = Depends(require_explorer)
 ):
+    _check_workspace(db, user, body.workspace_id)
     try:
         config = svc.validate_config(db, user, body.config, None)
     except svc.DashboardError as exc:
         raise _bad(exc) from exc
-    d = Dashboard(name=body.name.strip(), description=body.description, owner_id=user.id, config=config)
+    d = Dashboard(
+        name=body.name.strip(),
+        description=body.description,
+        owner_id=user.id,
+        workspace_id=body.workspace_id,
+        config=config,
+    )
     db.add(d)
     db.flush()
     audit.record(
@@ -212,6 +255,34 @@ def update_dashboard(
     return _detail(db, d, level, user)
 
 
+@router.put("/{dashboard_id}/workspace")
+def move_dashboard(
+    dashboard_id: int,
+    body: MoveIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_explorer),
+):
+    d, level = _get(db, dashboard_id, user)
+    if level != "manage":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner or a workspace manager can move this")
+    _check_workspace(db, user, body.workspace_id)
+    before = d.workspace_id
+    d.workspace_id = body.workspace_id
+    audit.record(
+        db,
+        "dashboard.move",
+        user=user,
+        request=request,
+        object_type="dashboard",
+        object_id=d.id,
+        details={"name": d.name, "from": before, "to": body.workspace_id},
+        commit=False,
+    )
+    db.commit()
+    return _detail(db, d, svc.share_level(db, user, d) or "view", user)
+
+
 @router.post("/{dashboard_id}/copy", status_code=status.HTTP_201_CREATED)
 def copy_dashboard(
     dashboard_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_explorer)
@@ -245,7 +316,10 @@ def delete_dashboard(
 ):
     d, level = _get(db, dashboard_id, user)
     if level != "manage":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner or an admin can delete this dashboard")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only the owner, an admin or a workspace manager can delete this dashboard",
+        )
     name = d.name
     db.delete(d)
     audit.record(

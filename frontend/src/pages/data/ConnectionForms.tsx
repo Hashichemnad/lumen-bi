@@ -6,6 +6,7 @@ import { Alert, Button, Field, Input, Modal, Select } from "../../components/ui"
 import { api, post, put } from "../../lib/api";
 import type { Connection } from "../../lib/types";
 import { useDataSettings } from "./common";
+import { t } from "../../lib/i18n";
 
 type DbType = "oracle" | "postgres";
 
@@ -71,7 +72,7 @@ export function DatabaseConnectionModal({
     try {
       setTest(await post("/connections/test", { ...body(), connection_id: existing?.id ?? null }));
     } catch (err) {
-      setTest({ ok: false, message: err instanceof Error ? err.message : "Test failed" });
+      setTest({ ok: false, message: err instanceof Error ? err.message : t("Test failed") });
     } finally {
       setTesting(false);
     }
@@ -88,19 +89,19 @@ export function DatabaseConnectionModal({
       onSaved?.(saved);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
 
   return (
-    <Modal open wide title={existing ? `Edit ${existing.name}` : `New ${type === "oracle" ? "Oracle" : "PostgreSQL"} connection`}
+    <Modal open wide title={existing ? `Edit ${existing.name}` : `New ${type === "oracle" ? t("Oracle") : t("PostgreSQL")} connection`}
       onClose={onClose}
       footer={<>
-        <Button variant="secondary" className="mr-auto" onClick={runTest} disabled={testing}>
-          {testing ? "Testing…" : "Test connection"}
+        <Button variant="secondary" className="me-auto" onClick={runTest} disabled={testing}>
+          {testing ? t("Testing…") : t("Test connection")}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={save}>Save</Button>
+        <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={save}>{t("Save")}</Button>
       </>}>
       {error && <Alert>{error}</Alert>}
       {test && (
@@ -108,29 +109,29 @@ export function DatabaseConnectionModal({
           {test.ok ? <CheckCircle2 size={18} /> : <XCircle size={18} />} {test.message}
         </div>
       )}
-      <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+      <Field label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="sm:col-span-2"><Field label="Host"><Input placeholder="db.company.local" value={f.host} onChange={(e) => set("host", e.target.value)} /></Field></div>
-        <Field label="Port"><Input value={f.port} onChange={(e) => set("port", e.target.value)} /></Field>
+        <div className="sm:col-span-2"><Field label={t("Host")}><Input placeholder={t("db.company.local")} value={f.host} onChange={(e) => set("host", e.target.value)} /></Field></div>
+        <Field label={t("Port")}><Input value={f.port} onChange={(e) => set("port", e.target.value)} /></Field>
       </div>
       {type === "oracle" ? (
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Connect using">
+          <Field label={t("Connect using")}>
             <Select value={f.target} onChange={(e) => set("target", e.target.value)}>
-              <option value="service_name">Service name</option>
-              <option value="sid">SID</option>
+              <option value="service_name">{t("Service name")}</option>
+              <option value="sid">{t("SID")}</option>
             </Select>
           </Field>
           <div className="sm:col-span-2">
-            <Field label={f.target === "sid" ? "SID" : "Service name"}>
+            <Field label={f.target === "sid" ? "SID" : t("Service name")}>
               <Input placeholder={f.target === "sid" ? "ORCL" : "ORCLPDB1"} value={f.service} onChange={(e) => set("service", e.target.value)} />
             </Field>
           </div>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Database"><Input value={f.database} onChange={(e) => set("database", e.target.value)} /></Field>
-          <Field label="SSL">
+          <Field label={t("Database")}><Input value={f.database} onChange={(e) => set("database", e.target.value)} /></Field>
+          <Field label={t("SSL")}>
             <Select value={f.sslmode} onChange={(e) => set("sslmode", e.target.value)}>
               {["prefer", "require", "verify-full", "disable"].map((m) => <option key={m} value={m}>{m}</option>)}
             </Select>
@@ -138,14 +139,14 @@ export function DatabaseConnectionModal({
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Username" hint="Use a read-only database user."><Input value={f.user} onChange={(e) => set("user", e.target.value)} /></Field>
-        <Field label="Password" hint={existing?.secrets_set.includes("password") ? "Stored. Leave empty to keep it." : "Stored encrypted."}>
+        <Field label={t("Username")} hint={t("Use a read-only database user.")}><Input value={f.user} onChange={(e) => set("user", e.target.value)} /></Field>
+        <Field label={t("Password")} hint={existing?.secrets_set.includes("password") ? t("Stored. Leave empty to keep it.") : t("Stored encrypted.")}>
           <Input type="password" autoComplete="new-password" value={password}
             placeholder={existing?.secrets_set.includes("password") ? "••••••••" : ""} onChange={(e) => setPassword(e.target.value)} />
         </Field>
       </div>
-      <Field label="Schemas to show (optional)" hint="Comma-separated. Empty = the user's own tables and views.">
-        <Input placeholder={type === "oracle" ? "SALES, FINANCE" : "public, sales"} value={f.schemas} onChange={(e) => set("schemas", e.target.value)} />
+      <Field label={t("Schemas to show (optional)")} hint={t("Comma-separated. Empty = the user's own tables and views.")}>
+        <Input placeholder={type === "oracle" ? t("SALES, FINANCE") : t("public, sales")} value={f.schemas} onChange={(e) => set("schemas", e.target.value)} />
       </Field>
     </Modal>
   );
@@ -184,24 +185,24 @@ export function UploadModal({
       onDone?.(conn);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : t("Upload failed"));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal open title={replace ? `Replace file in ${replace.name}` : "Upload a file"} onClose={onClose}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button disabled={!file || busy} onClick={submit}>{busy ? "Uploading…" : "Upload"}</Button></>}>
+    <Modal open title={replace ? `Replace file in ${replace.name}` : t("Upload a file")} onClose={onClose}
+      footer={<><Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button disabled={!file || busy} onClick={submit}>{busy ? t("Uploading…") : t("Upload")}</Button></>}>
       {error && <Alert>{error}</Alert>}
       <p className="text-sm text-slate-600">
-        CSV, Excel (.xlsx, every sheet becomes a table) or Parquet, up to {settings.data?.max_upload_mb ?? "…"} MB.
+        {t("CSV, Excel (.xlsx, every sheet becomes a table) or Parquet, up to")} {settings.data?.max_upload_mb ?? "…"} {t("MB.")}
         {replace && " Datasets built on this file are refreshed automatically."}
       </p>
       <Input type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.parquet" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       {!replace && (
-        <Field label="Name (optional)"><Input placeholder={file?.name ?? "Branch targets 2026"} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={t("Name (optional)")}><Input placeholder={file?.name ?? t("Branch targets 2026")} value={name} onChange={(e) => setName(e.target.value)} /></Field>
       )}
     </Modal>
   );

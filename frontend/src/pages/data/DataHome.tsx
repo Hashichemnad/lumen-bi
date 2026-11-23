@@ -10,6 +10,7 @@ import { CONNECTION_ICONS, CONNECTION_LABELS, StatusBadge, describeSchedule, for
 import { RestConnectionModal, SalesforceConnectionModal } from "./ApiConnectionForms";
 import CombineModal from "./CombineModal";
 import { DatabaseConnectionModal, UploadModal } from "./ConnectionForms";
+import { t } from "../../lib/i18n";
 
 export default function DataHome() {
   const navigate = useNavigate();
@@ -24,29 +25,29 @@ export default function DataHome() {
 
   return (
     <>
-      <PageHeader title="Data" description="Connect your systems, choose what to copy, and keep it refreshed on a schedule." />
+      <PageHeader title={t("Data")} description={t("Connect your systems, choose what to copy, and keep it refreshed on a schedule.")} />
 
       <Card className="mb-8 p-5">
-        <h2 className="font-semibold">Add data</h2>
+        <h2 className="font-semibold">{t("Add data")}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setAdding("file")}><FileSpreadsheet size={16} /> Upload a file</Button>
-          <Button variant="secondary" onClick={() => setAdding("oracle")}><Server size={16} /> Oracle</Button>
-          <Button variant="secondary" onClick={() => setAdding("postgres")}><Database size={16} /> PostgreSQL</Button>
-          <Button variant="secondary" onClick={() => setAdding("salesforce")}><Cloud size={16} /> Salesforce</Button>
-          <Button variant="secondary" onClick={() => setAdding("rest")}><Globe size={16} /> REST API</Button>
-          <Button variant="secondary" onClick={() => setAdding("combine")} disabled={!datasets.data?.some((d) => d.columns.length)}><Combine size={16} /> Join or combine datasets</Button>
-          <Link to="/data/maps"><Button variant="secondary"><MapIcon size={16} /> Maps</Button></Link>
+          <Button variant="secondary" onClick={() => setAdding("file")}><FileSpreadsheet size={16} /> {t("Upload a file")}</Button>
+          <Button variant="secondary" onClick={() => setAdding("oracle")}><Server size={16} /> {t("Oracle")}</Button>
+          <Button variant="secondary" onClick={() => setAdding("postgres")}><Database size={16} /> {t("PostgreSQL")}</Button>
+          <Button variant="secondary" onClick={() => setAdding("salesforce")}><Cloud size={16} /> {t("Salesforce")}</Button>
+          <Button variant="secondary" onClick={() => setAdding("rest")}><Globe size={16} /> {t("REST API")}</Button>
+          <Button variant="secondary" onClick={() => setAdding("combine")} disabled={!datasets.data?.some((d) => d.columns.length)}><Combine size={16} /> {t("Join or combine datasets")}</Button>
+          <Link to="/data/maps"><Button variant="secondary"><MapIcon size={16} /> {t("Maps")}</Button></Link>
         </div>
       </Card>
 
-      <h2 className="mb-3 text-lg font-semibold">Datasets</h2>
+      <h2 className="mb-3 text-lg font-semibold">{t("Datasets")}</h2>
       <Card className="mb-8">
-        <Table head={["Dataset", "Source", "Rows", "Status", "Refresh", "Last synced"]}>
+        <Table head={[t("Dataset"), t("Source"), t("Rows"), t("Status"), t("Refresh"), t("Last synced")]}>
           {datasets.data?.map((d) => (
             <tr key={d.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/data/datasets/${d.id}`)}>
               <td className="px-4 py-3 font-medium">{d.name}</td>
               <td className="px-4 py-3 text-slate-600">
-                <div>{d.kind === "source" ? d.connection_name : d.kind === "join" ? "Join" : "Union"}</div>
+                <div>{d.kind === "source" ? d.connection_name : d.kind === "join" ? t("Join") : t("Union")}</div>
                 <div className="truncate text-xs text-slate-500">{sourceLabel(d)}</div>
               </td>
               <td className="px-4 py-3 tabular-nums">{d.current_version ? formatNumber(d.row_count) : "—"}</td>
@@ -57,11 +58,11 @@ export default function DataHome() {
           ))}
         </Table>
         {datasets.data?.length === 0 && (
-          <p className="p-6 text-center text-sm text-slate-500">No datasets yet. Add a connection, then create a dataset from it.</p>
+          <p className="p-6 text-center text-sm text-slate-500">{t("No datasets yet. Add a connection, then create a dataset from it.")}</p>
         )}
       </Card>
 
-      <h2 className="mb-3 text-lg font-semibold">Connections</h2>
+      <h2 className="mb-3 text-lg font-semibold">{t("Connections")}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {connections.data?.map((c) => (
           <Link key={c.id} to={`/data/connections/${c.id}`}>
@@ -70,14 +71,14 @@ export default function DataHome() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{c.name}</span>
                 <span className="block text-sm text-slate-500">
-                  {CONNECTION_LABELS[c.type] ?? c.type} · {c.dataset_count} dataset{c.dataset_count === 1 ? "" : "s"}
+                  {t(CONNECTION_LABELS[c.type] ?? c.type)} · {t(c.dataset_count === 1 ? "{n} dataset" : "{n} datasets", { n: c.dataset_count })}
                 </span>
               </span>
             </Card>
           </Link>
         ))}
       </div>
-      {connections.data?.length === 0 && <p className="text-sm text-slate-500">No connections yet.</p>}
+      {connections.data?.length === 0 && <p className="text-sm text-slate-500">{t("No connections yet.")}</p>}
 
       {adding === "file" && <UploadModal onClose={() => setAdding(null)} onDone={goTo} />}
       {adding === "combine" && <CombineModal onClose={() => setAdding(null)} onSaved={(d) => navigate(`/data/datasets/${d.id}`)} />}

@@ -8,6 +8,7 @@ import { get } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { ProviderPublic } from "../lib/types";
 import AuthShell from "./AuthShell";
+import { t } from "../lib/i18n";
 
 const ICONS = { entra: <Building2 size={18} />, uaepass: <IdCard size={18} />, oidc: <KeyRound size={18} /> };
 
@@ -21,11 +22,11 @@ function SSOButtons({ next }: { next: string }) {
       {providers.data.map((p) => (
         <a key={p.id} href={`/api/v1/auth/sso/${p.id}/start?next=${encodeURIComponent(next)}`}
           className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">
-          {ICONS[p.type]} Sign in with {p.name}
+          {ICONS[p.type]} {t("Sign in with {name}", { name: p.name })}
         </a>
       ))}
       <div className="flex items-center gap-3 py-2 text-xs text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" /> or use your email <span className="h-px flex-1 bg-slate-200" />
+        <span className="h-px flex-1 bg-slate-200" /> {t("or use your email")} <span className="h-px flex-1 bg-slate-200" />
       </div>
     </div>
   );
@@ -52,28 +53,28 @@ export default function Login() {
       await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+      setError(err instanceof Error ? err.message : t("Sign-in failed"));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AuthShell title="Sign in" subtitle="Use your work email and password.">
+    <AuthShell title={t("Sign in")} subtitle={t("Use your work email and password.")}>
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <SSOButtons next={from} />
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email">
+        <Field label={t("Email")}>
           <Input type="email" autoComplete="username" required autoFocus value={email}
             onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <Field label="Password">
+        <Field label={t("Password")}>
           <Input type="password" autoComplete="current-password" required value={password}
             onChange={(e) => setPassword(e.target.value)} />
         </Field>
-        <Button type="submit" className="w-full" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
+        <Button type="submit" className="w-full" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</Button>
         <div className="text-center text-sm">
-          <Link to="/forgot-password" className="text-brand-600 hover:underline">Forgot your password?</Link>
+          <Link to="/forgot-password" className="text-brand-600 hover:underline">{t("Forgot your password?")}</Link>
         </div>
       </form>
     </AuthShell>

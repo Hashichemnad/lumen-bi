@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -26,7 +28,8 @@ async function tryRefresh(): Promise<boolean> {
 function errorMessage(body: unknown, fallback: string): string {
   if (body && typeof body === "object" && "detail" in body) {
     const detail = (body as { detail: unknown }).detail;
-    if (typeof detail === "string") return detail;
+    // Fixed messages from the server are translated like the rest of the interface
+    if (typeof detail === "string") return t(detail);
     if (Array.isArray(detail)) {
       // FastAPI validation errors
       return detail

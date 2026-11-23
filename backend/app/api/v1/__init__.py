@@ -1,7 +1,21 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import csrf_protect
-from app.api.v1 import admin, auth, boundaries, charts, dashboards, data, groups, model, query, sso, users
+from app.api.v1 import (
+    admin,
+    auth,
+    boundaries,
+    charts,
+    dashboards,
+    data,
+    groups,
+    model,
+    query,
+    settings,
+    sso,
+    users,
+    workspaces,
+)
 
 api_router = APIRouter(prefix="/api/v1", dependencies=[Depends(csrf_protect)])
 api_router.include_router(admin.router)
@@ -15,3 +29,5 @@ api_router.include_router(query.router)
 api_router.include_router(charts.router)
 api_router.include_router(dashboards.router)
 api_router.include_router(boundaries.router)
+api_router.include_router(settings.router)
+api_router.include_router(workspaces.router)

@@ -15,8 +15,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-Grain = Literal["year", "quarter", "month", "week", "day", "hour", "minute"]
-Part = Literal["year", "quarter", "month", "week", "weekday", "day", "hour"]
+# fiscal_year / fiscal_quarter follow the organisation's fiscal year start; week follows its first day of
+# the week (Regional settings)
+Grain = Literal["fiscal_year", "fiscal_quarter", "year", "quarter", "month", "week", "day", "hour", "minute"]
+Part = Literal["fiscal_year", "fiscal_quarter", "year", "quarter", "month", "week", "weekday", "day", "hour"]
 Agg = Literal[
     "sum", "avg", "count", "count_distinct", "min", "max", "median", "percentile", "stdev", "var", "none"
 ]
@@ -80,7 +82,7 @@ class Filter(BaseModel):
     part: Part | None = None
     agg: Agg | None = None  # set to filter on an aggregated value (applied after grouping)
     # relative dates: last n units, including the current one
-    unit: Literal["day", "week", "month", "quarter", "year"] | None = None
+    unit: Literal["day", "week", "month", "quarter", "year", "fiscal_quarter", "fiscal_year"] | None = None
     n: int | None = Field(None, ge=1, le=100_000)
     by: Measure | None = None  # top/bottom: rank by this measure
 

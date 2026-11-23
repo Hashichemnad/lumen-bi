@@ -6,6 +6,7 @@ import { Alert, Badge, Button, Card, Field as FormField, Input, Modal, Select } 
 import { del, get, patch, post, put } from "../../lib/api";
 import type { Field, FieldFormat, Hierarchy, Parameter } from "../../lib/types";
 import { BinModal, CalculatedFieldModal, GroupModal, TYPE_LABELS } from "./FieldEditors";
+import { t } from "../../lib/i18n";
 
 const FORMAT_LABELS: Record<FieldFormat["type"], string> = {
   number: "Number", currency: "Currency", percent: "Percent", date: "Date", datetime: "Date & time", text: "Text",
@@ -35,17 +36,17 @@ function FieldRow({ f, datasetId, canEdit, onEdit, onError }: {
       await patch(`/datasets/${datasetId}/fields/${f.id}`, changes);
       await qc.invalidateQueries({ queryKey: ["fields", datasetId] });
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not save");
+      onError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
   const remove = async () => {
-    if (!confirm(`Delete field "${f.label || f.name}"?`)) return;
+    if (!confirm(t("Delete field \"{v0}\"?", { v0: f.label || f.name }))) return;
     try {
       await del(`/datasets/${datasetId}/fields/${f.id}`);
       await qc.invalidateQueries({ queryKey: ["fields", datasetId] });
       await qc.invalidateQueries({ queryKey: ["preview", datasetId] });
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not delete");
+      onError(err instanceof Error ? err.message : t("Could not delete"));
     }
   };
   const fmt = f.format?.type ?? "text";
@@ -57,21 +58,21 @@ function FieldRow({ f, datasetId, canEdit, onEdit, onError }: {
           <Input value={label} disabled={!canEdit} className="min-w-44 py-1.5"
             onChange={(e) => setLabel(e.target.value)} onBlur={() => label !== f.label && save({ label })} />
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1 pl-0.5">
+        <div className="mt-0.5 flex flex-wrap items-center gap-1 ps-0.5">
           <code className="text-[11px] text-slate-500">{f.name}</code>
-          {f.missing && <Badge tone="amber">not in source</Badge>}
-          {f.error && <Badge tone="red">broken</Badge>}
-          {f.is_aggregate && <Badge tone="blue">aggregate</Badge>}
+          {f.missing && <Badge tone="amber">{t("not in source")}</Badge>}
+          {f.error && <Badge tone="red">{t("broken")}</Badge>}
+          {f.is_aggregate && <Badge tone="blue">{t("aggregate")}</Badge>}
         </div>
         {f.error && <div className="mt-0.5 max-w-xs text-xs text-red-700">{f.error}</div>}
         {f.formula && <div className="mt-0.5 max-w-xs truncate font-mono text-[11px] text-slate-500" title={f.formula}>{f.formula}</div>}
       </td>
-      <td className="px-3 py-2 text-xs text-slate-600">{TYPE_LABELS[f.data_type] ?? f.data_type}</td>
+      <td className="px-3 py-2 text-xs text-slate-600">{t(TYPE_LABELS[f.data_type] ?? f.data_type)}</td>
       <td className="px-3 py-2">
         <div className="w-36">
           <Select className="py-1.5" value={f.role} disabled={!canEdit || f.is_aggregate} onChange={(e) => save({ role: e.target.value })}>
-            <option value="dimension">Dimension</option>
-            <option value="measure">Measure</option>
+            <option value="dimension">{t("Dimension")}</option>
+            <option value="measure">{t("Measure")}</option>
           </Select>
         </div>
       </td>
@@ -82,11 +83,11 @@ function FieldRow({ f, datasetId, canEdit, onEdit, onError }: {
             {Object.entries(FORMAT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select></div>
           {["number", "currency", "percent"].includes(fmt) && (
-            <div className="w-16"><Input type="number" min="0" max="6" className="py-1.5" title="Decimals" value={f.format.decimals ?? 2} disabled={!canEdit}
+            <div className="w-16"><Input type="number" min="0" max="6" className="py-1.5" title={t("Decimals")} value={f.format.decimals ?? 2} disabled={!canEdit}
               onChange={(e) => save({ format: { ...f.format, decimals: Number(e.target.value) } })} /></div>
           )}
           {fmt === "currency" && (
-            <div className="w-16"><Input className="py-1.5 uppercase" title="Currency" defaultValue={f.format.currency ?? "AED"} disabled={!canEdit} maxLength={3}
+            <div className="w-16"><Input className="py-1.5 uppercase" title={t("Currency")} defaultValue={f.format.currency ?? "AED"} disabled={!canEdit} maxLength={3}
               onBlur={(e) => save({ format: { ...f.format, currency: e.target.value.toUpperCase() || "AED" } })} /></div>
           )}
         </div>
@@ -99,12 +100,12 @@ function FieldRow({ f, datasetId, canEdit, onEdit, onError }: {
         ) : <span className="text-xs text-slate-400">—</span>}
       </td>
       <td className="px-3 py-2 text-center">
-        <input type="checkbox" title="Hide from chart builders" checked={f.hidden} disabled={!canEdit} onChange={(e) => save({ hidden: e.target.checked })} />
+        <input type="checkbox" title={t("Hide from chart builders")} checked={f.hidden} disabled={!canEdit} onChange={(e) => save({ hidden: e.target.checked })} />
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-right">
-        {canEdit && f.kind !== "column" && <Button variant="ghost" size="sm" aria-label="Edit" onClick={() => onEdit(f)}><Pencil size={14} /></Button>}
+      <td className="whitespace-nowrap px-3 py-2 text-end">
+        {canEdit && f.kind !== "column" && <Button variant="ghost" size="sm" aria-label={t("Edit")} onClick={() => onEdit(f)}><Pencil size={14} /></Button>}
         {canEdit && (f.kind !== "column" || f.missing) && (
-          <Button variant="ghost" size="sm" aria-label="Delete" title={f.used_by.length ? `Used by ${f.used_by.join(", ")}` : "Delete"} onClick={remove}><Trash2 size={14} /></Button>
+          <Button variant="ghost" size="sm" aria-label={t("Delete")} title={f.used_by.length ? `Used by ${f.used_by.join(", ")}` : t("Delete")} onClick={remove}><Trash2 size={14} /></Button>
         )}
       </td>
     </tr>
@@ -132,28 +133,28 @@ function HierarchyModal({ datasetId, fields, existing, onClose }: { datasetId: n
       await qc.invalidateQueries({ queryKey: ["fields", datasetId] });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
   return (
-    <Modal open title={existing ? `Edit ${existing.name}` : "New hierarchy"} onClose={onClose}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={!name.trim() || levels.length < 2}>Save</Button></>}>
+    <Modal open title={existing ? `Edit ${existing.name}` : t("New hierarchy")} onClose={onClose}
+      footer={<><Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button><Button onClick={save} disabled={!name.trim() || levels.length < 2}>{t("Save")}</Button></>}>
       {error && <Alert>{error}</Alert>}
-      <p className="text-sm text-slate-600">A drill path from broad to detailed, e.g. Country → Emirate → Branch. Dates drill year → quarter → month → day on their own.</p>
-      <FormField label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Geography" /></FormField>
+      <p className="text-sm text-slate-600">{t("A drill path from broad to detailed, e.g. Country → Emirate → Branch. Dates drill year → quarter → month → day on their own.")}</p>
+      <FormField label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Geography")} /></FormField>
       <ol className="space-y-1">
         {levels.map((lv, i) => (
           <li key={lv} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm">
             <span className="w-5 text-slate-400">{i + 1}.</span>
             <span className="flex-1">{label(lv)}</span>
-            <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Up"><ArrowUp size={14} /></Button>
-            <Button variant="ghost" size="sm" disabled={i === levels.length - 1} onClick={() => move(i, 1)} aria-label="Down"><ArrowDown size={14} /></Button>
-            <Button variant="ghost" size="sm" onClick={() => setLevels(levels.filter((x) => x !== lv))} aria-label="Remove"><Trash2 size={14} /></Button>
+            <Button variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Up")}><ArrowUp size={14} /></Button>
+            <Button variant="ghost" size="sm" disabled={i === levels.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}><ArrowDown size={14} /></Button>
+            <Button variant="ghost" size="sm" onClick={() => setLevels(levels.filter((x) => x !== lv))} aria-label={t("Remove")}><Trash2 size={14} /></Button>
           </li>
         ))}
       </ol>
       <Select value="" onChange={(e) => e.target.value && setLevels([...levels, e.target.value])}>
-        <option value="">Add a level…</option>
+        <option value="">{t("Add a level…")}</option>
         {options.map((f) => <option key={f.id} value={f.name}>{f.label || f.name}</option>)}
       </Select>
     </Modal>
@@ -179,26 +180,26 @@ function ParameterModal({ datasetId, existing, onClose }: { datasetId: number; e
       await qc.invalidateQueries({ queryKey: ["fields", datasetId] });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
   return (
-    <Modal open title={existing ? `Edit @${existing.name}` : "New parameter"} onClose={onClose}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={!name.trim()}>Save</Button></>}>
+    <Modal open title={existing ? `Edit @${existing.name}` : t("New parameter")} onClose={onClose}
+      footer={<><Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button><Button onClick={save} disabled={!name.trim()}>{t("Save")}</Button></>}>
       {error && <Alert>{error}</Alert>}
-      <p className="text-sm text-slate-600">A value people can change on a dashboard, used in formulas as @Name, e.g. an exchange rate or a target.</p>
+      <p className="text-sm text-slate-600">{t("A value people can change on a dashboard, used in formulas as @Name, e.g. an exchange rate or a target.")}</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="FX Rate" /></FormField>
-        <FormField label="Type">
+        <FormField label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("FX Rate")} /></FormField>
+        <FormField label={t("Type")}>
           <Select value={type} onChange={(e) => setType(e.target.value as Parameter["data_type"])}>
-            <option value="number">Number</option><option value="integer">Whole number</option>
-            <option value="string">Text</option><option value="date">Date</option><option value="boolean">Yes/No</option>
+            <option value="number">{t("Number")}</option><option value="integer">{t("Whole number")}</option>
+            <option value="string">{t("Text")}</option><option value="date">{t("Date")}</option><option value="boolean">{t("Yes/No")}</option>
           </Select>
         </FormField>
-        <FormField label="Default value"><Input type={type === "date" ? "date" : "text"} value={value} onChange={(e) => setValue(e.target.value)} /></FormField>
-        <FormField label="Allowed values (optional)" hint="Comma-separated. Empty = any value."><Input value={allowed} onChange={(e) => setAllowed(e.target.value)} /></FormField>
+        <FormField label={t("Default value")}><Input type={type === "date" ? "date" : "text"} value={value} onChange={(e) => setValue(e.target.value)} /></FormField>
+        <FormField label={t("Allowed values (optional)")} hint={t("Comma-separated. Empty = any value.")}><Input value={allowed} onChange={(e) => setAllowed(e.target.value)} /></FormField>
       </div>
-      <FormField label="Description (optional)"><Input value={description} onChange={(e) => setDescription(e.target.value)} /></FormField>
+      <FormField label={t("Description (optional)")}><Input value={description} onChange={(e) => setDescription(e.target.value)} /></FormField>
     </Modal>
   );
 }
@@ -215,42 +216,42 @@ export default function ModelTab({ datasetId, canEdit }: { datasetId: number; ca
   const list = showHidden ? all : all.filter((f) => !f.hidden);
 
   const removeHierarchy = async (h: Hierarchy) => {
-    if (!confirm(`Delete hierarchy "${h.name}"?`)) return;
+    if (!confirm(t("Delete hierarchy \"{name}\"?", { name: h.name }))) return;
     await del(`/datasets/${datasetId}/hierarchies/${h.id}`);
     await qc.invalidateQueries({ queryKey: ["hierarchies", datasetId] });
     await qc.invalidateQueries({ queryKey: ["fields", datasetId] });
   };
   const removeParameter = async (p: Parameter) => {
-    if (!confirm(`Delete parameter @${p.name}?`)) return;
+    if (!confirm(t("Delete parameter @{name}?", { name: p.name }))) return;
     try {
       await del(`/datasets/${datasetId}/parameters/${p.id}`);
       await qc.invalidateQueries({ queryKey: ["parameters", datasetId] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not delete");
+      setError(err instanceof Error ? err.message : t("Could not delete"));
     }
   };
 
-  if (fields.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
-  if (!all.length) return <Card className="p-6 text-center text-sm text-slate-500">Fields appear after the first successful sync.</Card>;
+  if (fields.isLoading) return <p className="text-sm text-slate-500">{t("Loading…")}</p>;
+  if (!all.length) return <Card className="p-6 text-center text-sm text-slate-500">{t("Fields appear after the first successful sync.")}</Card>;
 
   return (
     <div className="space-y-6">
       {error && <Alert><span className="flex justify-between gap-4">{error}<button onClick={() => setError("")}>×</button></span></Alert>}
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 p-3">
-          <h3 className="mr-auto font-semibold">Fields <span className="text-sm font-normal text-slate-500">· labels, roles and formats people see in charts</span></h3>
-          <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> <EyeOff size={12} /> show hidden</label>
+          <h3 className="me-auto font-semibold">{t("Fields")} <span className="text-sm font-normal text-slate-500">{t("· labels, roles and formats people see in charts")}</span></h3>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} /> <EyeOff size={12} /> {t("show hidden")}</label>
           {canEdit && <>
-            <Button size="sm" onClick={() => setEditing({ kind: "calculated" })}><Calculator size={14} /> Calculated field</Button>
-            <Button size="sm" variant="secondary" onClick={() => setEditing({ kind: "group" })}><Layers size={14} /> Group</Button>
-            <Button size="sm" variant="secondary" onClick={() => setEditing({ kind: "bin" })}><Ruler size={14} /> Bins</Button>
+            <Button size="sm" onClick={() => setEditing({ kind: "calculated" })}><Calculator size={14} /> {t("Calculated field")}</Button>
+            <Button size="sm" variant="secondary" onClick={() => setEditing({ kind: "group" })}><Layers size={14} /> {t("Group")}</Button>
+            <Button size="sm" variant="secondary" onClick={() => setEditing({ kind: "bin" })}><Ruler size={14} /> {t("Bins")}</Button>
           </>}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr><th className="px-3 py-2">Field</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Format</th><th className="px-3 py-2">Default total</th><th className="px-3 py-2">Hidden</th><th /></tr>
+            <thead className="bg-slate-50 text-start text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr><th className="px-3 py-2">{t("Field")}</th><th className="px-3 py-2">{t("Type")}</th><th className="px-3 py-2">{t("Role")}</th>
+                <th className="px-3 py-2">{t("Format")}</th><th className="px-3 py-2">{t("Default total")}</th><th className="px-3 py-2">{t("Hidden")}</th><th /></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {list.map((f) => (
@@ -265,8 +266,8 @@ export default function ModelTab({ datasetId, canEdit }: { datasetId: number; ca
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-semibold">Hierarchies</h3>
-            {canEdit && <Button size="sm" variant="secondary" onClick={() => setHierarchy("new")}><Plus size={14} /> Hierarchy</Button>}
+            <h3 className="font-semibold">{t("Hierarchies")}</h3>
+            {canEdit && <Button size="sm" variant="secondary" onClick={() => setHierarchy("new")}><Plus size={14} /> {t("Hierarchy")}</Button>}
           </div>
           {hierarchies.data?.length ? (
             <ul className="space-y-2 text-sm">
@@ -274,31 +275,31 @@ export default function ModelTab({ datasetId, canEdit }: { datasetId: number; ca
                 <li key={h.id} className="flex items-center gap-2">
                   <span className="font-medium">{h.name}</span>
                   <span className="flex-1 truncate text-slate-500">{h.levels.map((lv) => all.find((f) => f.name === lv)?.label || lv).join(" → ")}</span>
-                  {canEdit && <><Button variant="ghost" size="sm" onClick={() => setHierarchy(h)} aria-label="Edit"><Pencil size={14} /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => removeHierarchy(h)} aria-label="Delete"><Trash2 size={14} /></Button></>}
+                  {canEdit && <><Button variant="ghost" size="sm" onClick={() => setHierarchy(h)} aria-label={t("Edit")}><Pencil size={14} /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeHierarchy(h)} aria-label={t("Delete")}><Trash2 size={14} /></Button></>}
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm text-slate-500">None yet. Dates drill down by year, quarter, month and day automatically.</p>}
+          ) : <p className="text-sm text-slate-500">{t("None yet. Dates drill down by year, quarter, month and day automatically.")}</p>}
         </Card>
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 font-semibold"><SlidersHorizontal size={16} /> Parameters</h3>
-            {canEdit && <Button size="sm" variant="secondary" onClick={() => setParameter("new")}><Plus size={14} /> Parameter</Button>}
+            <h3 className="flex items-center gap-1.5 font-semibold"><SlidersHorizontal size={16} /> {t("Parameters")}</h3>
+            {canEdit && <Button size="sm" variant="secondary" onClick={() => setParameter("new")}><Plus size={14} /> {t("Parameter")}</Button>}
           </div>
           {params.data?.length ? (
             <ul className="space-y-2 text-sm">
               {params.data.map((p) => (
                 <li key={p.id} className="flex items-center gap-2">
                   <code className="text-brand-700">@{p.name}</code>
-                  <span className="flex-1 text-slate-500">{TYPE_LABELS[p.data_type] ?? p.data_type} · default {String(p.default_value ?? "—")}
+                  <span className="flex-1 text-slate-500">{t(TYPE_LABELS[p.data_type] ?? p.data_type)} {t("· default")} {String(p.default_value ?? "—")}
                     {p.allowed_values.length > 0 && ` · one of ${p.allowed_values.join(", ")}`}</span>
-                  {canEdit && <><Button variant="ghost" size="sm" onClick={() => setParameter(p)} aria-label="Edit"><Pencil size={14} /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => removeParameter(p)} aria-label="Delete"><Trash2 size={14} /></Button></>}
+                  {canEdit && <><Button variant="ghost" size="sm" onClick={() => setParameter(p)} aria-label={t("Edit")}><Pencil size={14} /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeParameter(p)} aria-label={t("Delete")}><Trash2 size={14} /></Button></>}
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm text-slate-500">None yet.</p>}
+          ) : <p className="text-sm text-slate-500">{t("None yet.")}</p>}
         </Card>
       </div>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, PageHeader, Pager, Select, Table, formatDate } from "../../components/ui";
 import { get } from "../../lib/api";
 import type { AuditEntry, Page } from "../../lib/types";
+import { t } from "../../lib/i18n";
 
 const PAGE_SIZE = 50;
 const ACTIONS = [
@@ -22,14 +23,14 @@ export default function Audit() {
 
   return (
     <>
-      <PageHeader title="Audit log" description="Sign-ins and changes, newest first." />
+      <PageHeader title={t("Audit log")} description={t("Sign-ins and changes, newest first.")} />
       <Card>
         <div className="border-b border-slate-200 p-4">
           <Select value={action} className="max-w-60" onChange={(e) => { setAction(e.target.value); setPage(1); }}>
-            {ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+            {ACTIONS.map((a) => <option key={a.value} value={a.value}>{t(a.label)}</option>)}
           </Select>
         </div>
-        <Table head={["When", "Who", "Action", "Object", "Details", "IP"]}>
+        <Table head={[t("When"), t("Who"), t("Action"), t("Object"), t("Details"), t("IP")]}>
           {log.data?.items.map((e) => (
             <tr key={e.id}>
               <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{formatDate(e.created_at)}</td>

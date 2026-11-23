@@ -1,5 +1,8 @@
 import clsx from "clsx";
 import { X } from "lucide-react";
+
+import { formatMoment } from "../lib/dates";
+import { t } from "../lib/i18n";
 import {
   useEffect,
   type ButtonHTMLAttributes,
@@ -53,7 +56,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={clsx(inputClass, "pr-8", className)} {...props} />;
+  return <select className={clsx(inputClass, "pe-8", className)} {...props} />;
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
@@ -119,12 +122,12 @@ export function Modal({
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-16">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16">
       <div role="dialog" aria-modal="true" aria-label={title}
         className={clsx("w-full rounded-xl bg-white shadow-xl", wide ? "max-w-2xl" : "max-w-md")}>
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
           <h2 className="font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Close">
+          <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label={t("Close")}>
             <X size={18} />
           </button>
         </div>
@@ -142,7 +145,7 @@ export function Table({ head, children }: { head: ReactNode[]; children: ReactNo
         <thead className="bg-slate-50">
           <tr>
             {head.map((h, i) => (
-              <th key={i} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th key={i} className="px-4 py-2.5 text-start text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {h}
               </th>
             ))}
@@ -159,17 +162,16 @@ export function Pager({ page, pageSize, total, onPage }: { page: number; pageSiz
   return (
     <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
       <span>
-        {total === 0 ? "No results" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
+        {total === 0 ? t("No results") : t("{from}–{to} of {total}", { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, total), total })}
       </span>
       <div className="flex gap-2">
-        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</Button>
-        <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</Button>
+        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>{t("Previous")}</Button>
+        <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>{t("Next")}</Button>
       </div>
     </div>
   );
 }
 
 export function formatDate(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return formatMoment(value);
 }

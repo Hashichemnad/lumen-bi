@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
+
+import { t } from "../../lib/i18n";
 import { useMemo, useState } from "react";
 
 import { Button, Field as FormField, Input, Modal, Select } from "../../components/ui";
@@ -58,16 +60,16 @@ export default function FilterModal({ catalog, field, existing, onSave, onClose 
   const label = f?.label || field;
 
   return (
-    <Modal open wide title={`Filter ${label}`} onClose={onClose}
+    <Modal open wide title={t("Filter {label}", { label })} onClose={onClose}
       footer={<>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={() => { onSave(draft); onClose(); }}>Apply</Button>
+        <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={() => { onSave(draft); onClose(); }}>{t("Apply")}</Button>
       </>}>
       {kinds.length > 1 && (
         <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
           {kinds.map((k) => (
             <button key={k} onClick={() => set({ kind: k })}
-              className={clsx("flex-1 rounded-md px-3 py-1.5 text-sm", draft.kind === k ? "bg-white font-medium shadow-sm" : "text-slate-600")}>{KIND_LABEL[k]}</button>
+              className={clsx("flex-1 rounded-md px-3 py-1.5 text-sm", draft.kind === k ? "bg-white font-medium shadow-sm" : "text-slate-600")}>{t(KIND_LABEL[k])}</button>
           ))}
         </div>
       )}
@@ -75,44 +77,44 @@ export default function FilterModal({ catalog, field, existing, onSave, onClose 
       {draft.kind === "values" && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Input placeholder="Search values" value={search} onChange={(e) => setSearch(e.target.value)} />
-            <Button variant="secondary" className="shrink-0" onClick={() => set({ values: [...new Set([...(draft.values ?? []), ...(values.data?.values ?? [])])] })}>All</Button>
-            <Button variant="secondary" className="shrink-0" onClick={() => set({ values: [] })}>None</Button>
+            <Input placeholder={t("Search values")} value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Button variant="secondary" className="shrink-0" onClick={() => set({ values: [...new Set([...(draft.values ?? []), ...(values.data?.values ?? [])])] })}>{t("All")}</Button>
+            <Button variant="secondary" className="shrink-0" onClick={() => set({ values: [] })}>{t("None")}</Button>
           </div>
           <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200">
             {values.data?.values.map((v, i) => (
               <label key={JSON.stringify(v)} className="flex cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-1.5 text-sm last:border-0 hover:bg-slate-50">
                 <input type="checkbox" checked={selected.has(JSON.stringify(v))} onChange={() => toggle(v)} />
-                <span className="flex-1">{v === null ? <span className="text-slate-400">(empty)</span> : formatValue(v, col)}</span>
+                <span className="flex-1">{v === null ? <span className="text-slate-400">{t("(empty)")}</span> : formatValue(v, col)}</span>
                 <span className="text-xs tabular-nums text-slate-400">{values.data?.counts[i]?.toLocaleString()}</span>
               </label>
             ))}
-            {values.data && !values.data.values.length && <p className="p-3 text-sm text-slate-500">No values</p>}
+            {values.data && !values.data.values.length && <p className="p-3 text-sm text-slate-500">{t("No values")}</p>}
           </div>
-          {values.data?.truncated && <p className="text-xs text-slate-500">Showing the first 500 values; search to find others.</p>}
+          {values.data?.truncated && <p className="text-xs text-slate-500">{t("Showing the first 500 values; search to find others.")}</p>}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!draft.exclude} onChange={(e) => set({ exclude: e.target.checked })} />
-            Exclude the selected values instead
+            {t("Exclude the selected values instead")}
           </label>
-          <p className="text-xs text-slate-500">{(draft.values ?? []).length} selected</p>
+          <p className="text-xs text-slate-500">{t("{length} selected", { length: (draft.values ?? []).length })}</p>
         </div>
       )}
 
       {draft.kind === "range" && (
         <div className="space-y-3">
           {measure && !f?.is_aggregate && (
-            <FormField label="Compare">
+            <FormField label={t("Compare")}>
               <Select value={draft.agg ?? ""} onChange={(e) => set({ agg: (e.target.value || undefined) as Agg | undefined })}>
-                <option value="">Each row's value</option>
-                {(["sum", "avg", "min", "max", "count"] as Agg[]).map((a) => <option key={a} value={a}>{AGG_LABEL[a]} per mark (after grouping)</option>)}
+                <option value="">{t("Each row's value")}</option>
+                {(["sum", "avg", "min", "max", "count"] as Agg[]).map((a) => <option key={a} value={a}>{t("{AGG_LABEL} per mark (after grouping)", { AGG_LABEL: AGG_LABEL[a] })}</option>)}
               </Select>
             </FormField>
           )}
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="From (optional)">
+            <FormField label={t("From (optional)")}>
               <Input type={date ? "date" : "number"} value={(draft.min as string | number | undefined) ?? ""} onChange={(e) => set({ min: e.target.value === "" ? null : date ? e.target.value : Number(e.target.value) })} />
             </FormField>
-            <FormField label="To (optional)">
+            <FormField label={t("To (optional)")}>
               <Input type={date ? "date" : "number"} value={(draft.max as string | number | undefined) ?? ""} onChange={(e) => set({ max: e.target.value === "" ? null : date ? e.target.value : Number(e.target.value) })} />
             </FormField>
           </div>
@@ -122,52 +124,52 @@ export default function FilterModal({ catalog, field, existing, onSave, onClose 
       {draft.kind === "relative" && (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1.5">
-            {([[1, "day", "Today"], [7, "day", "Last 7 days"], [30, "day", "Last 30 days"], [1, "month", "This month"], [3, "month", "Last 3 months"], [12, "month", "Last 12 months"], [1, "year", "This year"]] as const).map(([n, unit, text]) => (
+            {([[1, "day", "Today"], [7, "day", "Last 7 days"], [30, "day", "Last 30 days"], [1, "month", "This month"], [3, "month", "Last 3 months"], [12, "month", "Last 12 months"], [1, "year", "This year"], [1, "fiscal_year", "This fiscal year"]] as const).map(([n, unit, text]) => (
               <button key={text} onClick={() => set({ n, unit })}
                 className={clsx("rounded-full border px-3 py-1 text-sm", draft.n === n && draft.unit === unit ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-200 hover:bg-slate-50")}>{text}</button>
             ))}
           </div>
           <div className="flex items-end gap-2">
-            <FormField label="Last">
+            <FormField label={t("Last")}>
               <Input type="number" min={1} className="w-24" value={draft.n ?? 1} onChange={(e) => set({ n: Math.max(1, Number(e.target.value) || 1) })} />
             </FormField>
             <div className="w-40">
               <Select value={draft.unit} onChange={(e) => set({ unit: e.target.value as FilterPill["unit"] })}>
-                {["day", "week", "month", "quarter", "year"].map((u) => <option key={u} value={u}>{u}s</option>)}
+                {(["day", "week", "month", "quarter", "year", "fiscal_quarter", "fiscal_year"] as const).map((u) => <option key={u} value={u}>{t({ day: "days", week: "weeks", month: "months", quarter: "quarters", year: "years", fiscal_quarter: "fiscal quarters", fiscal_year: "fiscal years" }[u])}</option>)}
               </Select>
             </div>
           </div>
-          <p className="text-xs text-slate-500">Includes the current {draft.unit}, up to today.</p>
+          <p className="text-xs text-slate-500">{t("Includes the current period, up to today.")}</p>
         </div>
       )}
 
       {draft.kind === "top" && (
         <div className="grid grid-cols-[auto_6rem_1fr] items-end gap-2">
           <Select value={draft.top} onChange={(e) => set({ top: e.target.value as "top" | "bottom" })}>
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
+            <option value="top">{t("Top")}</option>
+            <option value="bottom">{t("Bottom")}</option>
           </Select>
           <Input type="number" min={1} value={draft.n ?? 10} onChange={(e) => set({ n: Math.max(1, Number(e.target.value) || 1) })} />
-          <FormField label={`${label} by`}>
+          <FormField label={t("{label} by", { label })}>
             <Select value={draft.by?.field ?? ""} onChange={(e) => set({ by: e.target.value ? { field: e.target.value } : undefined })}>
-              <option value="">Choose a measure</option>
-              <option value="*">Number of rows</option>
+              <option value="">{t("Choose a measure")}</option>
+              <option value="*">{t("Number of rows")}</option>
               {measures.map((m) => <option key={m.name} value={m.name}>{m.label || m.name}</option>)}
             </Select>
           </FormField>
-          <p className="col-span-3 text-xs text-slate-500">Ranked after the other filters.</p>
+          <p className="col-span-3 text-xs text-slate-500">{t("Ranked after the other filters.")}</p>
         </div>
       )}
 
       {draft.kind === "text" && (
         <div className="grid grid-cols-[12rem_1fr] gap-2">
           <Select value={draft.op} onChange={(e) => set({ op: e.target.value as FilterPill["op"] })}>
-            <option value="contains">Contains</option>
-            <option value="not_contains">Does not contain</option>
-            <option value="starts_with">Starts with</option>
-            <option value="ends_with">Ends with</option>
+            <option value="contains">{t("Contains")}</option>
+            <option value="not_contains">{t("Does not contain")}</option>
+            <option value="starts_with">{t("Starts with")}</option>
+            <option value="ends_with">{t("Ends with")}</option>
           </Select>
-          <Input value={draft.text ?? ""} onChange={(e) => set({ text: e.target.value })} placeholder="Text (any case)" />
+          <Input value={draft.text ?? ""} onChange={(e) => set({ text: e.target.value })} placeholder={t("Text (any case)")} />
         </div>
       )}
     </Modal>

@@ -15,6 +15,7 @@ import { countryCenters, countryIndex, countryName, loadWorld, place, regionArou
 import { ALL_PAIRS_CAP, CATEGORICAL, FONT, INK, OTHER, OTHER_LABEL, colorMap, inkOn, sequential, SEQUENTIAL } from "./palette";
 import { buildMore, MORE_TYPES } from "./build2";
 import type { ChartConfig, ChartType, Pill } from "./types";
+import { t } from "../i18n";
 
 export interface Built {
   option: EChartsCoreOption;
@@ -130,12 +131,18 @@ export function extraLines(R: Result, row: Row | undefined, pills: Pill[]): stri
 }
 
 export const TOOLTIP_BASE = {
-  backgroundColor: "#ffffff",
-  borderColor: "rgba(11,11,11,0.10)",
+  get backgroundColor() {
+    return INK.surface;
+  },
+  get borderColor() {
+    return INK.tooltipBorder;
+  },
   borderWidth: 1,
   padding: [8, 10],
   extraCssText: "box-shadow:0 4px 16px rgba(0,0,0,0.08);border-radius:8px;",
-  textStyle: { fontFamily: FONT },
+  get textStyle() {
+    return { fontFamily: FONT, color: INK.primary };
+  },
 };
 
 export function valueAxis(fmtCol: QueryColumn | undefined, percent = false): Obj {
@@ -220,7 +227,7 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
   // Extra dimensions on Detail split marks into segments (bars) or separate lines, in one colour
   const segmentDim = !seriesDim ? L.detail[0] : undefined;
   if (type === "combo" && seriesDim) {
-    notes.push("Bars + line ignores the Color shelf");
+    notes.push(t("Bars + line ignores the Color shelf"));
     seriesDim = undefined;
   }
   const rows = R.r.rows;
@@ -696,7 +703,7 @@ async function map(cfg: ChartConfig, R: Result): Promise<Built> {
       return r ? tooltipBox(R.text(r, d), [{ value: formatValue(R.get(r, m), col), name: R.label(m) }], extraLines(R, r, L.tooltip)) : "";
     },
   };
-  const geoBase = { roam: true, itemStyle: { areaColor: "#f0efec", borderColor: INK.surface, borderWidth: 1 }, emphasis: { itemStyle: { areaColor: "#e1e0d9" }, label: { show: false } }, label: { show: false }, select: { disabled: true } };
+  const geoBase = { roam: true, itemStyle: { areaColor: INK.wash, borderColor: INK.surface, borderWidth: 1 }, emphasis: { itemStyle: { areaColor: INK.wash2 }, label: { show: false } }, label: { show: false }, select: { disabled: true } };
 
   if (countryHits >= placeHits && countryHits > 0) {
     const matched = countries.filter((c): c is string => !!c);
@@ -730,7 +737,7 @@ async function map(cfg: ChartConfig, R: Result): Promise<Built> {
   const max = Math.max(1, ...vals);
   const miss = unknown(places);
   if (miss.length) notes.push(`Not on the map: ${miss.slice(0, 5).join(", ")}${miss.length > 5 ? ` and ${miss.length - 5} more` : ""}.`);
-  notes.push("Bubble size shows the value.");
+  notes.push(t("Bubble size shows the value."));
   return {
     notes,
     maps: { [name]: region.geo },

@@ -10,6 +10,7 @@ import * as echarts from "echarts/core";
 import type { EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { INK } from "../../lib/chart/palette";
 
 echarts.use([
   BarChart, LineChart, PieChart, ScatterChart, HeatmapChart, TreemapChart, MapChart, CustomChart, FunnelChart, GaugeChart,
@@ -43,7 +44,7 @@ const EChart = forwardRef<EChartHandle, {
   onMarkRef.current = onMark;
 
   useImperativeHandle(ref, () => ({
-    png: () => chart.current?.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#ffffff" }) ?? null,
+    png: () => chart.current?.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: INK.surface }) ?? null,
   }));
 
   useEffect(() => {

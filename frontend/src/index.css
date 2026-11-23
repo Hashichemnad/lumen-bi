@@ -1,12 +1,148 @@
 @import "tailwindcss";
 
+/*
+ * Themes. Every screen is written with the slate / brand / status scales below, and each theme redefines
+ * those scales, so a theme changes every screen at once. The Advanced theme inverts the slate scale
+ * (50 = page, 900 = text) and "white" becomes the card surface. Chart colours follow the theme in
+ * src/lib/chart/palette.ts (applyChartTheme).
+ */
 @theme {
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter Variable", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Inter Variable", "Inter", "Segoe UI", system-ui, sans-serif;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-slate-50: #f5f6f8;
+  --color-slate-100: #eef0f3;
+  --color-slate-200: #e3e6ea;
+  --color-slate-300: #c9ced6;
+  --color-slate-400: #8a93a0;
+  --color-slate-500: #5b6472;
+  --color-slate-600: #4a5361;
+  --color-slate-700: #3b4250;
+  --color-slate-800: #252b35;
+  --color-slate-900: #151a21;
+
+  --color-brand-50: #eaf2fc;
+  --color-brand-100: #d4e4f8;
+  --color-brand-300: #8fbaec;
+  --color-brand-400: #5b9be3;
+  --color-brand-500: #2a78d6;
+  --color-brand-600: #2370cc;
+  --color-brand-700: #1b5cab;
+  --color-brand-800: #164a8a;
+
+  --color-red-50: #fdecea;
+  --color-red-200: #f5c2bd;
+  --color-red-300: #ee9a92;
+  --color-red-600: #c8322a;
+  --color-red-700: #b42318;
+  --color-red-800: #8f1c13;
+  --color-emerald-50: #e3f4ec;
+  --color-emerald-200: #b5e3cc;
+  --color-emerald-600: #158a5a;
+  --color-emerald-700: #0f7b4f;
+  --color-emerald-800: #0b603d;
+  --color-emerald-900: #084a2f;
+  --color-green-700: #0f7b4f;
+  --color-amber-50: #fdf1d6;
+  --color-amber-400: #f2b93b;
+  --color-amber-500: #eda100;
+  --color-amber-800: #8a5a00;
+  --color-amber-900: #6b4600;
+  --color-sky-50: #eaf2fc;
+  --color-sky-200: #b9d4f3;
+  --color-sky-600: #2370cc;
+  --color-sky-800: #164a8a;
+}
+
+/* Advanced: dark */
+:root[data-theme="advanced"] {
+  color-scheme: dark;
+  --font-display: "Space Grotesk", "Inter Variable", "Inter", system-ui, sans-serif;
+  --color-white: #141922;
+  --color-black: #000000;
+  --color-slate-50: #0b0e13;
+  --color-slate-100: #1b2230;
+  --color-slate-200: #232b37;
+  --color-slate-300: #323c4a;
+  --color-slate-400: #6f7987;
+  --color-slate-500: #9aa3b0;
+  --color-slate-600: #b3bac5;
+  --color-slate-700: #c9cfd8;
+  --color-slate-800: #dde1e7;
+  --color-slate-900: #e8ebf0;
+
+  --color-brand-50: #16233a;
+  --color-brand-100: #1d2f4d;
+  --color-brand-300: #4f86cc;
+  --color-brand-400: #79b4ff;
+  --color-brand-500: #5aa2ff;
+  --color-brand-600: #5aa2ff;
+  --color-brand-700: #8cc0ff;
+  --color-brand-800: #a5cbff;
+
+  --color-red-50: #3a1714;
+  --color-red-200: #6b2a24;
+  --color-red-300: #8f3a31;
+  --color-red-600: #ff8a7e;
+  --color-red-700: #ff9d92;
+  --color-red-800: #ffb3aa;
+  --color-emerald-50: #11301f;
+  --color-emerald-200: #1e5236;
+  --color-emerald-600: #34c48e;
+  --color-emerald-700: #4ad18f;
+  --color-emerald-800: #6fe0a8;
+  --color-emerald-900: #9aeec4;
+  --color-green-700: #4ad18f;
+  --color-amber-50: #33280c;
+  --color-amber-400: #f0b429;
+  --color-amber-500: #f0b429;
+  --color-amber-800: #f3c04f;
+  --color-amber-900: #f7d27f;
+  --color-sky-50: #16233a;
+  --color-sky-200: #1d2f4d;
+  --color-sky-600: #79b4ff;
+  --color-sky-800: #a5cbff;
+
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 1rem;
+  --shadow-sm: 0 0 0 0 transparent;
+  --shadow-xl: 0 20px 40px rgb(0 0 0 / 0.5);
+}
+
+/* Analyst (Tableau-style): compact, square, dense */
+:root[data-theme="analyst"] {
+  font-size: 14px;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-display: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --color-slate-50: #eceef1;
+  --color-slate-100: #eef0f3;
+  --color-slate-200: #d5d9de;
+  --color-slate-300: #b7bdc5;
+  --color-slate-500: #59616b;
+  --color-slate-600: #474f59;
+  --color-slate-700: #2f3640;
+  --color-slate-900: #1f2328;
+  --color-brand-50: #dce7f3;
+  --color-brand-100: #c5d7ec;
+  --color-brand-500: #1f6fb5;
+  --color-brand-600: #1f6fb5;
+  --color-brand-700: #14518a;
+  --color-brand-800: #0f3f6c;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
+  --radius-2xl: 4px;
+  --shadow-sm: 0 0 0 0 transparent;
+}
+
+/* Arabic: the Arabic face first, the theme's Latin face for numbers and English names */
+:root[lang="ar"] {
+  --font-sans: "IBM Plex Sans Arabic", "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-display: "IBM Plex Sans Arabic", "Inter Variable", "Inter", system-ui, sans-serif;
 }
 
 html,
@@ -16,5 +152,43 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 font-sans text-slate-900 antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+/* Icons that point (arrows, chevrons) turn around in right-to-left pages */
+[dir="rtl"] .flip-rtl {
+  transform: scaleX(-1);
+}
+
+/* TV mode: bigger text for reading from across the room */
+:root[data-tv="1"] {
+  font-size: 18px;
+}
+
+:root[data-theme="analyst"] .logo-mark {
+  rx: 3px;
+}
+
+/* Analyst: solid KPI codes, like report headers */
+:root[data-theme="analyst"] .section-code {
+  background: var(--color-brand-600);
+  color: #ffffff;
+}
+
+/* Analyst: solid field pills, blue for dimensions and green for measures */
+:root[data-theme="analyst"] .pill-dim {
+  background: #1f6fb5;
+  border-color: #1f6fb5;
+  color: #ffffff;
+}
+:root[data-theme="analyst"] .pill-measure {
+  background: #17784a;
+  border-color: #17784a;
+  color: #ffffff;
 }

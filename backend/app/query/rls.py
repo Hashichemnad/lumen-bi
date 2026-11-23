@@ -330,6 +330,9 @@ def forget_principal(db: Session, principal: str, principal_id: int) -> None:
             )
         ):
             db.delete(share)
+    from app.services import workspaces
+
+    workspaces.forget_principal(db, principal, principal_id)
     if principal == "group":
         for rule in db.scalars(select(RlsRule)):
             if principal_id in (rule.exempt_groups or []):

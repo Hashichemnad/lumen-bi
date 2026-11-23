@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 
 import { Button, Input } from "./ui";
+import { t } from "../lib/i18n";
 
 export type Row = { key: string; value: string };
 
@@ -29,7 +30,7 @@ export default function KeyValueEditor({
         <div key={i} className="flex gap-2">
           <Input placeholder={keyPlaceholder} value={row.key} onChange={(e) => set(i, { key: e.target.value })} />
           <Input placeholder={valuePlaceholder} value={row.value} onChange={(e) => set(i, { value: e.target.value })} />
-          <Button type="button" variant="ghost" aria-label="Remove" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
+          <Button type="button" variant="ghost" aria-label={t("Remove")} onClick={() => onChange(rows.filter((_, j) => j !== i))}>
             <Trash2 size={16} />
           </Button>
         </div>

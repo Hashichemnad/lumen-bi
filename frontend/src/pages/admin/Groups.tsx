@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, Badge, Button, Card, Field, Input, Modal, PageHeader, Table } from "../../components/ui";
 import { del, get, patch, post, put } from "../../lib/api";
 import type { Group, Page, User } from "../../lib/types";
+import { t } from "../../lib/i18n";
 
 function GroupModal({ group, onClose }: { group: Group | "new"; onClose: () => void }) {
   const qc = useQueryClient();
@@ -36,11 +37,11 @@ function GroupModal({ group, onClose }: { group: Group | "new"; onClose: () => v
       await qc.invalidateQueries({ queryKey: ["users"] });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
   const remove = async () => {
-    if (isNew || !confirm(`Delete group "${group.name}"? Members keep their accounts.`)) return;
+    if (isNew || !confirm(t("Delete group \"{name}\"? Members keep their accounts.", { name: group.name }))) return;
     await del(`/groups/${group.id}`);
     await qc.invalidateQueries({ queryKey: ["groups"] });
     onClose();
@@ -51,17 +52,17 @@ function GroupModal({ group, onClose }: { group: Group | "new"; onClose: () => v
   );
 
   return (
-    <Modal open wide title={isNew ? "New group" : `Edit ${group.name}`} onClose={onClose}
+    <Modal open wide title={isNew ? t("New group") : `Edit ${group.name}`} onClose={onClose}
       footer={<>
-        {!isNew && <Button variant="danger" className="mr-auto" onClick={remove}>Delete</Button>}
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={save}>Save</Button>
+        {!isNew && <Button variant="danger" className="me-auto" onClick={remove}>{t("Delete")}</Button>}
+        <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={save}>{t("Save")}</Button>
       </>}>
       {error && <Alert>{error}</Alert>}
-      <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Finance team" /></Field>
-      <Field label="Description"><Input value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
-      <Field label={`Members (${members.length})`}>
-        <Input placeholder="Filter users" value={filter} onChange={(e) => setFilter(e.target.value)} className="mb-2" />
+      <Field label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Finance team")} /></Field>
+      <Field label={t("Description")}><Input value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+      <Field label={t("Members ({length})", { length: members.length })}>
+        <Input placeholder={t("Filter users")} value={filter} onChange={(e) => setFilter(e.target.value)} className="mb-2" />
         <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
           {visible.map((u) => (
             <label key={u.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50">
@@ -82,10 +83,10 @@ export default function Groups() {
   const [editing, setEditing] = useState<Group | "new" | null>(null);
   return (
     <>
-      <PageHeader title="Groups" description="Share dashboards and apply data rules to many people at once."
-        actions={<Button onClick={() => setEditing("new")}><Plus size={16} /> New group</Button>} />
+      <PageHeader title={t("Groups")} description={t("Share dashboards and apply data rules to many people at once.")}
+        actions={<Button onClick={() => setEditing("new")}><Plus size={16} /> {t("New group")}</Button>} />
       <Card>
-        <Table head={["Group", "Members", "Source"]}>
+        <Table head={[t("Group"), t("Members"), t("Source")]}>
           {groups.data?.map((g) => (
             <tr key={g.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setEditing(g)}>
               <td className="px-4 py-3">
@@ -97,7 +98,7 @@ export default function Groups() {
             </tr>
           ))}
         </Table>
-        {groups.data?.length === 0 && <p className="p-6 text-center text-sm text-slate-500">No groups yet.</p>}
+        {groups.data?.length === 0 && <p className="p-6 text-center text-sm text-slate-500">{t("No groups yet.")}</p>}
       </Card>
       {editing && <GroupModal group={editing} onClose={() => setEditing(null)} />}
     </>

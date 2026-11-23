@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type { ChartConfig, Grain, Pill } from "../chart/types";
 import { SHELVES } from "../chart/types";
 import type { QueryColumn } from "../types";
@@ -31,12 +32,28 @@ export function filterSpecs(f: DashFilter, v: FilterValue, datasetId: number): S
     });
 }
 
+const UNIT_NAME: Record<string, [string, string]> = {
+  day: ["Today", "Last {n} days"],
+  week: ["This week", "Last {n} weeks"],
+  month: ["This month", "Last {n} months"],
+  quarter: ["This quarter", "Last {n} quarters"],
+  year: ["This year", "Last {n} years"],
+  fiscal_quarter: ["This fiscal quarter", "Last {n} fiscal quarters"],
+  fiscal_year: ["This fiscal year", "Last {n} fiscal years"],
+};
+
+/** "This month", "Last 3 months", "This fiscal year"… */
+export function relativeLabel(unit: string, n: number): string {
+  const [one, many] = UNIT_NAME[unit] ?? ["This " + unit, "Last {n} " + unit + "s"];
+  return n === 1 ? t(one) : t(many, { n });
+}
+
 export function describeValue(f: DashFilter, v: FilterValue): string {
-  if (!isActive(f, v)) return "All";
-  if (Array.isArray(v)) return v.length <= 2 ? v.map((x) => (x === null ? "(empty)" : String(x))).join(", ") : `${v.length} selected`;
+  if (!isActive(f, v)) return t("All");
+  if (Array.isArray(v)) return v.length <= 2 ? v.map((x) => (x === null ? "(empty)" : String(x))).join(", ") : t("{n} selected", { n: v.length });
   if (typeof v === "object" && v && "min" in v) return `${v.min ?? "…"} – ${v.max ?? "…"}`;
   if (typeof v === "object" && v && "mode" in v) {
-    if (v.mode === "relative") return v.n === 1 ? `This ${v.unit}` : `Last ${v.n} ${v.unit}s`;
+    if (v.mode === "relative") return relativeLabel(v.unit, v.n);
     return `${v.from ?? "…"} – ${v.to ?? "…"}`;
   }
   return `"${v}"`;

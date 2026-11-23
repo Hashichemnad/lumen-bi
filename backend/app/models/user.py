@@ -40,6 +40,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default=Role.viewer.value)
     # Attributes drive row-level security, e.g. {"region": ["EMEA"], "branch": "Dubai"}
     attributes: Mapped[dict] = mapped_column(JSONType, default=dict)
+    # Personal choices: {"theme": "classic"|"advanced"|"analyst", "language": "en"|"ar",
+    # "calendar": "gregorian"|"hijri"|"both"}; missing keys use the organisation's defaults
+    preferences: Mapped[dict] = mapped_column(JSONType, default=dict)
     # local | entra | uaepass
     auth_provider: Mapped[str] = mapped_column(String(20), default="local")
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -63,6 +66,7 @@ class User(Base):
         # Apply defaults in Python too, so new objects are usable before they are flushed
         kwargs.setdefault("role", Role.viewer.value)
         kwargs.setdefault("attributes", {})
+        kwargs.setdefault("preferences", {})
         kwargs.setdefault("auth_provider", "local")
         kwargs.setdefault("is_active", True)
         kwargs.setdefault("failed_logins", 0)
