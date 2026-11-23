@@ -10,7 +10,7 @@ const ROADMAP = [
   { name: "Salesforce and REST API connections", done: true },
   { name: "Data modelling and calculated fields", done: true },
   { name: "Query engine with row-level security", done: true },
-  { name: "Chart builder", done: false },
+  { name: "Chart builder", done: true },
   { name: "Interactive dashboards", done: false },
   { name: "Exports, email reports and alerts", done: false },
   { name: "AI: ask questions, explain, forecast", done: false },

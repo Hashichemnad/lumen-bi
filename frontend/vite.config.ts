@@ -7,4 +7,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173, proxy: { "/api": "http://localhost:8000" } },
   preview: { proxy: { "/api": "http://localhost:8000" } },
+  // The chart builder (ECharts) and the world map are loaded on demand, so large chunks are expected
+  build: { chunkSizeWarningLimit: 900 },
 });

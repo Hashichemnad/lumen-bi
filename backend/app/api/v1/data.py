@@ -16,7 +16,7 @@ from app.connectors import REGISTRY, Connector, ConnectorError, connector_class
 from app.connectors.files import FORMATS
 from app.core.config import get_settings
 from app.db import get_db
-from app.models import Connection, Dataset, Role, SyncRun, User
+from app.models import Chart, Connection, Dataset, Role, SyncRun, User
 from app.query import duck, engine, rls
 from app.schemas import (
     ColumnOut,
@@ -541,6 +541,11 @@ def delete_dataset(
             409,
             f"{names} {'is' if len(used_by) == 1 else 'are'} built from this dataset. "
             "Delete or change that first.",
+        )
+    charts = db.scalar(select(func.count()).select_from(Chart).where(Chart.dataset_id == ds.id)) or 0
+    if charts:
+        raise HTTPException(
+            409, f"{charts} saved chart{'s use' if charts > 1 else ' uses'} this dataset. Delete them first."
         )
     guarded = rls.datasets_using_as_access_table(db, ds.id)
     if guarded:

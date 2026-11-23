@@ -67,3 +67,30 @@ export const post = <T>(path: string, body?: unknown) => api<T>(path, { method: 
 export const patch = <T>(path: string, body: unknown) => api<T>(path, { method: "PATCH", body });
 export const put = <T>(path: string, body: unknown) => api<T>(path, { method: "PUT", body });
 export const del = (path: string) => api<void>(path, { method: "DELETE" });
+
+/** POST and save the response as a file (CSV exports). */
+export async function download(path: string, body: unknown, fallbackName: string): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-Requested-With": "lumen", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, errorMessage(data, `Download failed (${res.status})`));
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallbackName;
+  saveFile(await res.blob(), name);
+}
+
+export function saveFile(data: Blob | string, name: string): void {
+  const url = typeof data === "string" ? data : URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  if (typeof data !== "string") setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
