@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
@@ -46,6 +46,62 @@ class ResetPasswordIn(BaseModel):
     new_password: str
 
 
+class LogoutOut(BaseModel):
+    logout_url: str | None = None
+
+
+# ---------- single sign-on ----------
+ProviderType = Literal["entra", "uaepass", "oidc"]
+
+
+class ProviderPublic(ORM):
+    """What the login page needs: no settings."""
+
+    id: int
+    type: str
+    name: str
+
+
+class ProviderIn(BaseModel):
+    type: ProviderType
+    name: str = Field(min_length=1, max_length=100)
+    enabled: bool = False
+    client_id: str = ""
+    client_secret: str | None = None  # None = keep the stored secret
+    config: dict[str, Any] = {}
+    attribute_map: dict[str, str] = {}
+    group_map: dict[str, str] = {}
+    auto_create: bool = False
+    default_role: Role = Role.viewer
+    allowed_domains: list[str] = []
+    link_by_email: bool = True
+
+
+class ProviderOut(ORM):
+    id: int
+    type: str
+    name: str
+    enabled: bool
+    client_id: str
+    has_secret: bool = False
+    config: dict[str, Any]
+    attribute_map: dict[str, str]
+    group_map: dict[str, str]
+    auto_create: bool
+    default_role: Role
+    allowed_domains: list[str]
+    link_by_email: bool
+    callback_url: str = ""
+
+
+class IdentityOut(BaseModel):
+    provider_id: int
+    provider_name: str
+    provider_type: str
+    email: str
+    last_login_at: datetime | None
+
+
 # ---------- groups ----------
 class GroupRef(ORM):
     id: int
@@ -83,6 +139,7 @@ class UserOut(ORM):
     last_login_at: datetime | None
     created_at: datetime
     groups: list[GroupRef] = []
+    sign_in_methods: list[IdentityOut] = []
 
 
 class UserCreate(BaseModel):

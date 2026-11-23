@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import hash_password, new_reset_token, password_problems
 from app.models import Group, PasswordResetToken, Role, User
-from app.schemas import UserOut
+from app.schemas import IdentityOut, UserOut
 from app.services.email import send_email
 
 
@@ -16,8 +16,18 @@ def is_locked(user: User) -> bool:
 
 
 def to_out(user: User) -> UserOut:
-    out = UserOut.model_validate(user)
+    out = UserOut.model_validate(user, from_attributes=True)
     out.locked = is_locked(user)
+    out.sign_in_methods = [
+        IdentityOut(
+            provider_id=i.provider_id,
+            provider_name=i.provider.name,
+            provider_type=i.provider.type,
+            email=i.email,
+            last_login_at=i.last_login_at,
+        )
+        for i in user.identities
+    ]
     return out
 
 

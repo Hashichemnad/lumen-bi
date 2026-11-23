@@ -17,7 +17,7 @@ Tableau-style interactive dashboards that show each user only the data they are 
 | Day-one connectors | Salesforce, Oracle, generic REST/JSON APIs, plus CSV/Excel upload |
 | Login | Email + password, Microsoft Entra ID (OIDC), UAE PASS (OAuth 2.0 / OIDC) |
 | Delivery | All features in one release, built in ordered milestones |
-| AI provider | Pluggable: default Claude API, switchable to OpenAI-compatible or self-hosted model |
+| AI provider | Both: cloud API (Claude or OpenAI) and a self-hosted model (OpenAI-compatible server such as Ollama or vLLM), configured by the admin |
 | Hosting | Owner's server with Docker Compose |
 
 Out of scope: desktop app, offline mobile app, Tableau Prep-style flows, multi-tenant SaaS.
@@ -62,6 +62,13 @@ python-oracledb (thin mode) · httpx · Playwright (PDF/PNG reports) · Docker C
 7. **AI**: Ask Data (English/Arabic) → chart; auto-dashboard; explain; anomaly alerts; forecasting; formula
    helper. AI only produces a query spec that runs through the same RLS; only schema and aggregated results
    are sent to the model.
+   - **Providers (both supported)**: cloud (Anthropic Claude API, OpenAI API) and self-hosted (any
+     OpenAI-compatible endpoint: Ollama, vLLM, LM Studio). Admin configures one or more and picks a default.
+   - **Routing**: a dataset can be marked *sensitive*; AI requests about it go only to a self-hosted
+     provider, and fail with a clear message if none is configured. Admin can also restrict features
+     (e.g. Explain on cloud, Ask Data on local).
+   - Same test set of sample questions runs against each configured provider to compare accuracy.
+   - Forecasting and anomaly detection are statistical (run on the server), so they need no AI provider.
 8. **Admin**: users/groups/attributes, CSV import; connection and sync monitor; usage analytics; settings
    (SSO, SMTP, AI provider, branding); backup/restore.
 9. **Platform**: public REST API with OpenAPI docs; health checks; structured logs; versioned migrations.

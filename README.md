@@ -3,7 +3,8 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–2 of 12 are done (foundation, sign-in, users, roles, groups, audit log).
+> Status: milestones 1–3 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> roles, groups, audit log).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)
@@ -73,6 +74,10 @@ cd frontend
 npm ci
 npm run dev                                       # http://localhost:5173
 ```
+
+## Single sign-on (Microsoft, UAE PASS)
+
+See [docs/SSO_SETUP.md](docs/SSO_SETUP.md).
 
 ## Importing users
 

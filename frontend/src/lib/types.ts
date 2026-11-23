@@ -14,6 +14,14 @@ export interface GroupRef {
   name: string;
 }
 
+export interface SignInMethod {
+  provider_id: number;
+  provider_name: string;
+  provider_type: ProviderType;
+  email: string;
+  last_login_at: string | null;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -26,6 +34,7 @@ export interface User {
   last_login_at: string | null;
   created_at: string;
   groups: GroupRef[];
+  sign_in_methods: SignInMethod[];
 }
 
 export interface Group {
@@ -52,4 +61,26 @@ export interface AuditEntry {
 export interface Page<T> {
   items: T[];
   total: number;
+}
+
+export type ProviderType = "entra" | "uaepass" | "oidc";
+
+export interface ProviderPublic {
+  id: number;
+  type: ProviderType;
+  name: string;
+}
+
+export interface Provider extends ProviderPublic {
+  enabled: boolean;
+  client_id: string;
+  has_secret: boolean;
+  config: Record<string, string>;
+  attribute_map: Record<string, string>;
+  group_map: Record<string, string>;
+  auto_create: boolean;
+  default_role: Role;
+  allowed_domains: string[];
+  link_by_email: boolean;
+  callback_url: string;
 }

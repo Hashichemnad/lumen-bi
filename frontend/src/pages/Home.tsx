@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 
 const ROADMAP = [
   { name: "Sign-in, users, roles and groups", done: true },
-  { name: "Microsoft and UAE PASS sign-in", done: false },
+  { name: "Microsoft and UAE PASS sign-in", done: true },
   { name: "Data connections: Oracle, Salesforce, REST APIs, files", done: false },
   { name: "Data modelling and calculated fields", done: false },
   { name: "Query engine with row-level security", done: false },

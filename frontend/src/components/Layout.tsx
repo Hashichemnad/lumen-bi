@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { BarChart3, Database, History, Home, LayoutDashboard, LogOut, UserCog, Users, UsersRound } from "lucide-react";
+import { BarChart3, Database, History, Home, KeyRound, LayoutDashboard, LogOut, UserCog, Users, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -22,6 +22,7 @@ const MAIN: NavItem[] = [
 const ADMIN: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: <Users size={18} />, role: "admin" },
   { to: "/admin/groups", label: "Groups", icon: <UsersRound size={18} />, role: "admin" },
+  { to: "/admin/sign-in", label: "Sign-in methods", icon: <KeyRound size={18} />, role: "admin" },
   { to: "/admin/audit", label: "Audit log", icon: <History size={18} />, role: "admin" },
 ];
 

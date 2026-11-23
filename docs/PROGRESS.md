@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | 1 | Foundation (repo, Docker, CI, migrations) | Done |
 | 2 | Auth, users, roles, groups, audit | Done (TOTP two-factor deferred to milestone 12) |
-| 3 | SSO: Microsoft Entra ID, UAE PASS | Next |
-| 4 | Connector framework + files + Oracle | — |
+| 3 | SSO: Microsoft Entra ID, UAE PASS | Done (real Microsoft/UAE PASS sign-in still to be tried by the owner) |
+| 4 | Connector framework + files + Oracle | Next |
 | 5 | Salesforce and REST connectors | — |
 | 6 | Semantic layer | — |
 | 7 | Query engine + row-level security | — |
@@ -38,21 +38,40 @@
 - Emails validated leniently so internal domains like `name@company.local` work.
 - UI components are hand-written in `frontend/src/components/ui.tsx` (Tailwind), not the shadcn CLI.
 - Roles are ordered: viewer < explorer < creator < admin; `require_role(min)` checks the level.
-- AI provider: not yet confirmed by the owner; plan is provider-agnostic with Claude API as default.
+- AI provider (owner, 2026-11-22): **both** cloud API (Claude/OpenAI) and self-hosted (OpenAI-compatible,
+  e.g. Ollama/vLLM). Datasets marked sensitive use only the self-hosted provider. See SPEC feature 7.
 
-## Next: milestone 3 (SSO)
+## What exists (milestone 3)
 
-- `identity_providers` table + admin settings page (client id/secret encrypted, endpoints, claim mapping,
-  invite-only vs auto-create with default role).
-- Authlib OIDC flow: `/auth/sso/{provider}/start` and `/callback`, state + nonce + PKCE.
-- Microsoft Entra ID: groups claim → groups (source "entra"), department/office → attributes.
-- UAE PASS: staging/production endpoints, scope `openid urn:uae:digitalid:profile:general`, `sub` as id.
-- Account linking by verified email or external id; SSO buttons on the login page.
-- Needs from the owner for real testing: Entra app registration; UAE PASS staging client credentials.
+- `identity_providers` (secrets encrypted with `ENCRYPTION_KEY`, see `app/core/crypto.py`) and
+  `user_identities` (one user can link several providers). Migration `0002`.
+- `app/services/sso.py`: adapters for Microsoft Entra ID (single tenant; ID token verified against JWKS,
+  issuer, audience, nonce; PKCE), UAE PASS (authorization code; Basic auth with query parameters at the token
+  endpoint; profile from userinfo; minimum SOP level; no PKCE/ID token, as documented), generic OIDC
+  (discovery URL). Account resolution: by linked identity, then email (if allowed), then auto-create
+  (if allowed), with allowed-domain checks; attribute and group mapping applied at every sign-in.
+- `app/api/v1/sso.py`: `/auth/providers`, `/auth/sso/{id}/start`, `/auth/sso/{id}/callback` (state in a
+  signed short-lived cookie; open-redirect protection), admin CRUD `/admin/identity-providers`.
+- Logout returns the provider's logout URL (UAE PASS requires signing out there too); the frontend follows it.
+- Frontend: SSO buttons and errors on the login page; Admin → Sign-in methods; linked methods on Account and
+  in the user editor.
+- `backend/tools/dev_idp.py`: local test OIDC provider. Setup guide: `docs/SSO_SETUP.md`.
+- Tests: 55 backend tests, including a fake IdP (forged signatures, wrong audience/issuer/nonce, expired
+  tokens, state mismatch, missing state cookie, open redirect). Browser test of the full flow with dev_idp.
+
+## Next: milestone 4 (connector framework + files + Oracle)
+
+- Connector interface (`test_connection`, `list_objects`, `get_schema`, `extract` as Arrow batches).
+- `connections` and `datasets` tables; secrets encrypted with `app/core/crypto.py`.
+- Parquet snapshot store (`DATA_DIR/datasets/<id>/v<n>/`), atomic switch, keep last 3.
+- Sync runs table, Celery task, Celery Beat schedules from dataset settings, failure emails.
+- File upload connector (CSV/Excel/Parquet) and Oracle (python-oracledb thin mode; table/view/SQL;
+  incremental by column). Oracle testing needs a reachable Oracle instance (owner's network, or a container).
+- Frontend: Data → Connections and Datasets pages, sync history, preview.
 
 ## Open questions for the owner
 
-- AI: Claude/OpenAI API or self-hosted model?
+- Self-hosted AI: is there (or will there be) a GPU server to run the local model?
 - Hosting: on-premise or UAE cloud region?
 - Arabic interface from day one?
 - First Salesforce objects and Oracle schemas?

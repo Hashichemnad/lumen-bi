@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     password_reset_minutes: int = 60
     cookie_secure: bool = False
+    sso_state_minutes: int = 10
 
     admin_email: str = "admin@example.com"
     admin_password: str = "ChangeMe123!"

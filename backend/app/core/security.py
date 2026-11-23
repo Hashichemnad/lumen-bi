@@ -39,9 +39,12 @@ def password_problems(password: str) -> list[str]:
     return problems
 
 
-def create_token(user_id: int, kind: str, lifetime: timedelta, token_version: int) -> str:
+def create_token(
+    user_id: int, kind: str, lifetime: timedelta, token_version: int, extra: dict | None = None
+) -> str:
     now = datetime.now(UTC)
     payload = {
+        **(extra or {}),
         "sub": str(user_id),
         "type": kind,
         "ver": token_version,
@@ -52,14 +55,28 @@ def create_token(user_id: int, kind: str, lifetime: timedelta, token_version: in
     return jwt.encode(payload, get_settings().secret_key, algorithm=ALGORITHM)
 
 
-def create_access_token(user_id: int, token_version: int) -> str:
-    return create_token(
-        user_id, "access", timedelta(minutes=get_settings().access_token_minutes), token_version
-    )
+def create_access_token(user_id: int, token_version: int, idp: int | None = None) -> str:
+    minutes = get_settings().access_token_minutes
+    return create_token(user_id, "access", timedelta(minutes=minutes), token_version, {"idp": idp})
 
 
-def create_refresh_token(user_id: int, token_version: int) -> str:
-    return create_token(user_id, "refresh", timedelta(days=get_settings().refresh_token_days), token_version)
+def create_refresh_token(user_id: int, token_version: int, idp: int | None = None) -> str:
+    days = get_settings().refresh_token_days
+    return create_token(user_id, "refresh", timedelta(days=days), token_version, {"idp": idp})
+
+
+def create_state_token(data: dict, minutes: int) -> str:
+    """Signed, short-lived token holding SSO state (stored in a cookie during the redirect)."""
+    payload = {**data, "type": "sso_state", "exp": datetime.now(UTC) + timedelta(minutes=minutes)}
+    return jwt.encode(payload, get_settings().secret_key, algorithm=ALGORITHM)
+
+
+def decode_state_token(token: str) -> dict | None:
+    try:
+        payload = jwt.decode(token, get_settings().secret_key, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    return payload if payload.get("type") == "sso_state" else None
 
 
 def decode_token(token: str, kind: str) -> dict | None:

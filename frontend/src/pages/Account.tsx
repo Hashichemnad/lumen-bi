@@ -46,6 +46,12 @@ export default function Account() {
                 {user.groups.length ? user.groups.map((g) => <Badge key={g.id}>{g.name}</Badge>) : "—"}
               </dd>
             </div>
+            <div className="flex justify-between gap-4"><dt className="text-slate-500">Sign-in methods</dt>
+              <dd className="flex flex-wrap justify-end gap-1">
+                {user.auth_provider === "local" && <Badge>Email and password</Badge>}
+                {user.sign_in_methods.map((m) => <Badge key={m.provider_id} tone="blue">{m.provider_name}</Badge>)}
+              </dd>
+            </div>
             <div className="flex justify-between gap-4"><dt className="text-slate-500">Data access</dt>
               <dd className="text-right">
                 {attrs.length ? attrs.map(([k, v]) => <div key={k}>{k}: {Array.isArray(v) ? v.join(", ") : String(v)}</div>) : "—"}

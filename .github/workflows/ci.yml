@@ -71,6 +71,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - run: cp .env.example .env  # compose reads it; real values are only on the server
       - name: Build images (with layer cache)
         uses: docker/bake-action@v5
         with:
