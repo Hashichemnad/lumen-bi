@@ -16,8 +16,8 @@
 | 10 | More chart types, dashboard sections, exports | Done |
 | 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Done (layout changes from the owner's testing to follow) |
 | 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | Done (Teams and WhatsApp to be tried with real accounts) |
-| 13 | AI and MCP server | Next |
-| 14 | Admin and hardening | — |
+| 13 | AI and MCP server | Done (real cloud and self-hosted models, and Claude, to be tried by the owner) |
+| 14 | Admin and hardening | Next |
 
 ## What exists (milestones 1–2)
 
@@ -399,16 +399,79 @@ the UI must be attractive and very easy to use, with designs shown before buildi
   rendered PDF, KPI alert happening, versions, data checks, masking editor, a display link and an embed token
   opened with no sign-in (other API calls refused), Arabic.
 
-## Next: milestone 13 (AI + MCP)
+## What exists (milestone 13)
 
-- Ask Data (English/Arabic), auto-dashboard, explain, forecasting, anomaly alerts, formula helper, AI daily
-  digest; cloud and self-hosted providers with routing for sensitive datasets.
-- Lumen MCP server (remote, OAuth per user, read-only, RLS, audited) so Claude can search datasets and
-  dashboards and run queries.
+- Models (migration `0011`, `app/models/ai.py`): `ai_providers` (key encrypted), `ai_requests` (who, feature,
+  model, tokens, time, error; no prompts or answers), `oauth_clients`, `oauth_codes`, `oauth_tokens` (hashes
+  only); `datasets.sensitive`.
+- **Providers and routing** (`services/ai/providers.py`): Anthropic (`/v1/messages`), OpenAI and any
+  OpenAI-compatible address (Ollama, vLLM, LM Studio, Azure OpenAI), called directly with httpx. Only enabled
+  models that allow the feature; **sensitive datasets (and datasets built from them) only go to models marked
+  "runs on our own servers"**, which only self-hosted models can be; the default model first; no fit = a clear
+  error and nothing is sent (fail closed). Per-person hourly limit (`AI_HOURLY_LIMIT`). Admin → AI: add, test,
+  restrict to features, default, usage for 30 days, recent failures.
+- **What models see** (`services/ai/context.py`): fields, a few common values of text fields and date ranges,
+  read with the asker's row-level security and masks (masked columns are never sampled), and aggregated
+  results. **What comes back is checked** (`services/ai/intent.py`): every field against the dataset, the query
+  built by Lumen and run with the person's RLS; one retry telling the model what was wrong.
+- **Ask Data** (English and Arabic; the answer follows the question's language): Home ("Ask your data"; Lumen
+  can choose the dataset) → a chart, one to three sentences with the numbers, how it was read; save the chart
+  or open it in the builder. Chart builder: "Describe the chart you want" fills the shelves.
+- **Explain** (chart builder; tile menu on dashboards, with the viewer's filters): 3–5 short points from the
+  result the person sees. **Formula helper** (calculated field → Write it for me; checked by the formula
+  compiler with sample values before it is offered). **Build with AI** (Dashboards): 4–8 charts proposed,
+  each validated and run, laid out (headline numbers first), owned by the person, in their workspace.
+- **Daily summary** (My account, opt in; `services/ai/digest.py`, Celery `lumen.ai_digests` every 15 minutes,
+  sent once a day from 7:00): KPI goals and headline numbers of favourite dashboards, read as the person, with
+  a few lines from the AI if a model may see that data (otherwise just the numbers).
+- **Compare models** (Admin → AI): a saved test set (dataset, questions, the fields and chart each should use)
+  run on chosen models: score, time, what each picked; cloud models are skipped for sensitive data.
+- **Forecasting** (no AI, `query/forecast.py`): `forecast` in the query spec (periods, 80–99% range,
+  seasonality); Holt-Winters with two seasons of history, else Holt; grid-searched smoothing; per series; the
+  unfinished current period left out of the fit; never below zero for data that never was. Chart builder →
+  Options → Forecast (line and area over a date): a dashed line and a shaded range; saved with the chart.
+- **Anomaly alerts** (no AI, `services/anomaly.py`): alert condition "Something unusual happens": the latest
+  finished period vs up to 30 before it (median and MAD), high / medium / low sensitivity, up / down / both;
+  checked per recipient like other alerts.
+- **MCP server** (`app/api/public.py`, `services/oauth.py`, `services/mcp.py`; `docs/AI.md`): remote,
+  Streamable HTTP (stateless JSON), OAuth 2.1 with protected-resource and authorization-server metadata,
+  dynamic client registration, PKCE S256, consent page `/oauth/authorize` (signed-in, any sign-in method),
+  1-hour access tokens and 30-day rotating refresh tokens (reuse revokes the app), revoke. Read-only tools
+  `search`, `describe_dataset`, `run_query` (raw rows for Explorers and up), `get_dashboard`,
+  `query_dashboard_tile`, `get_kpis`, all as the person with their RLS, each call audited (`mcp.tool`).
+  Admin → AI: on/off, who may connect, server address to paste into Claude, everyone's connections;
+  My account → Connected AI apps. Caddy and Vite send the endpoints to the API. Access tokens do not work on
+  `/api/v1`.
+- Roles: Ask Data and Explain need Explorer (as the role description says: "ask AI"); the formula helper
+  needs Creator; everyone may get the daily summary.
+- Also: menus and dialogs now open in a portal, so a tile's menu is no longer clipped by the next tile.
+- Optional Ollama service: `docker compose --profile ai up`.
+- Arabic for every new screen and AI message (about 1,430 texts).
+- Tests: 409 backend tests on PostgreSQL (`test_ai.py`: providers admin-only and keys never returned, only
+  self-hosted can be local, default, Ask Data with the asker's rows in the prompt and the result, Arabic,
+  retry on an invented field, unanswerable without retry, filters and KPI, dataset choice, explorer and
+  dataset access needed, sensitive data only to self-hosted models (and nothing sent when none), inherited
+  sensitivity, hourly limit, explain (query and dashboard tile), formula checked, auto-dashboard skips broken
+  charts, comparison (cloud skipped for sensitive data), usage, Anthropic and OpenAI request formats, daily
+  summary once a day with the person's rows; `test_forecast.py`; `test_mcp.py`: metadata, 401 with
+  `resource_metadata`, admin switch, redirect checks, consent checks, minimum role, PKCE and single-use codes,
+  tokens only for MCP, refresh rotation and reuse detection, revoke and disconnect, tools with RLS, hidden
+  items, raw rows need Explorer, Origin check, audit). Browser test with a stand-in model: adding a
+  self-hosted model, Ask Data in English and Arabic, save and open in the builder, describe a chart, forecast,
+  explain, build a dashboard, explain a tile, anomaly alert, formula helper, sensitive toggle, daily summary,
+  MCP consent → tokens → tools, connected apps, comparison.
+
+## Next: milestone 14 (admin and hardening)
+
+- Admin: usage analytics, connection and sync monitor, user CSV import, branding, backup and restore.
+- Hardening: rate limits, security headers review, load test, two-factor sign-in (TOTP), dependency audit.
+- Data entry (write-back): optional, still to be decided by the owner.
 
 ## Open questions for the owner
 
-- Self-hosted AI: is there (or will there be) a GPU server to run the local model?
+- Self-hosted AI: is there (or will there be) a GPU server to run the local model? Which datasets should be
+  marked sensitive?
+- AI roles: Ask Data and Explain are for Explorers and up (the role description). Should Viewers have them too?
 - Hosting: on-premise or UAE cloud region?
 - First Salesforce objects and Oracle schemas?
 - WhatsApp: which Meta business account and approved template name to use (the template needs three values:

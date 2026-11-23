@@ -126,6 +126,30 @@ export function OptionsPanel({ cfg, type, onChange }: { cfg: ChartConfig; type: 
       {(type === "line" || type === "area") && (
         <Row label={t("Smooth lines")}><input type="checkbox" checked={!!o.smooth} onChange={(e) => onChange({ smooth: e.target.checked })} /></Row>
       )}
+      {(type === "line" || type === "area") && (
+        <div className="space-y-1.5">
+          <Row label={t("Forecast")}>
+            <input type="checkbox" checked={!!o.forecast} onChange={(e) => onChange({ forecast: e.target.checked ? { periods: 6, interval: 0.95 } : null })} />
+          </Row>
+          {o.forecast && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <label className="text-xs text-slate-500">
+                {t("Periods ahead")}
+                <Input className="mt-0.5 py-1" type="number" min={1} max={120} value={o.forecast.periods}
+                  onChange={(e) => onChange({ forecast: { ...o.forecast!, periods: Math.max(1, Math.min(120, Number(e.target.value) || 1)) } })} />
+              </label>
+              <label className="text-xs text-slate-500">
+                {t("Likely range")}
+                <Select className="mt-0.5 py-1 ps-2 pe-7" value={o.forecast.interval}
+                  onChange={(e) => onChange({ forecast: { ...o.forecast!, interval: Number(e.target.value) as 0.8 | 0.9 | 0.95 | 0.99 } })}>
+                  {[0.8, 0.9, 0.95, 0.99].map((v) => <option key={v} value={v}>{Math.round(v * 100)}%</option>)}
+                </Select>
+              </label>
+              <p className="col-span-2 text-xs text-slate-500">{t("Needs a date at a level such as month. Calculated on the server from past values; no AI.")}</p>
+            </div>
+          )}
+        </div>
+      )}
       {(cartesian || type === "scatter") && (
         <Row label={t("Trend line")}><input type="checkbox" checked={!!o.trend} onChange={(e) => onChange({ trend: e.target.checked })} /></Row>
       )}

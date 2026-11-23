@@ -304,10 +304,13 @@ def send_subscription(
 
 # ------------------------------------------------------------------ alerts
 class Condition(BaseModel):
-    kind: Literal["value", "kpi"] = "value"
+    kind: Literal["value", "kpi", "anomaly"] = "value"
     op: Literal["gt", "gte", "lt", "lte"] = "gt"
     value: float = 0
     status: Literal["off_track", "at_risk"] = "off_track"
+    # anomaly: how unusual (high = tells you sooner) and which way
+    sensitivity: Literal["low", "medium", "high"] = "medium"
+    direction: Literal["both", "up", "down"] = "both"
 
 
 class AlertIn(BaseModel):
@@ -351,6 +354,12 @@ def _check_target(d: Dashboard, body: AlertIn) -> dict:
         return {"kind": "kpi", "status": body.condition.status}
     if tile is None or tile.get("kind") != "chart":
         raise HTTPException(422, "Choose a chart on this dashboard")
+    if body.condition.kind == "anomaly":
+        return {
+            "kind": "anomaly",
+            "sensitivity": body.condition.sensitivity,
+            "direction": body.condition.direction,
+        }
     return {"kind": "value", "op": body.condition.op, "value": body.condition.value}
 
 

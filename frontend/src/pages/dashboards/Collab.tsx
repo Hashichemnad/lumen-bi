@@ -466,6 +466,9 @@ export function SubscriptionsModal({ dash, state, onClose }: { dash: Dashboard; 
 // ------------------------------------------------------------------ alerts
 function describeCondition(c: AlertItem["condition"]): string {
   if (c.kind === "kpi") return c.status === "at_risk" ? t("the KPI is at risk or off track") : t("the KPI is off track");
+  if (c.kind === "anomaly") {
+    return c.direction === "up" ? t("the latest value is unusually high") : c.direction === "down" ? t("the latest value is unusually low") : t("the latest value is unusual");
+  }
   const sign = { gt: ">", gte: "≥", lt: "<", lte: "≤" }[c.op ?? "gt"];
   return t("the value is {sign} {value}", { sign, value: (c.value ?? 0).toLocaleString() });
 }
@@ -477,7 +480,7 @@ export function AlertsModal({ dash, tiles, kpis, onClose }: { dash: Dashboard; t
   const charts = tiles.filter((x) => x.kind === "chart");
   const kpiSections = kpis.map((k) => k.section);
   const blank = () => ({
-    name: "", tile_id: charts[0]?.id ?? "", condition: { kind: "value", op: "gt", value: 0, status: "off_track" } as AlertItem["condition"],
+    name: "", tile_id: charts[0]?.id ?? "", condition: { kind: "value", op: "gt", value: 0, status: "off_track", sensitivity: "medium", direction: "both" } as AlertItem["condition"],
     recipients: { users: user ? [user.id] : [], groups: [] } as Recipients, channels: ["email"], schedule: "*/30 * * * *", enabled: true,
   });
   const [editing, setEditing] = useState<(ReturnType<typeof blank> & { id?: number }) | null>(null);
@@ -510,11 +513,11 @@ export function AlertsModal({ dash, tiles, kpis, onClose }: { dash: Dashboard; t
       {editing ? (
         <div className="space-y-4">
           <div role="radiogroup" aria-label={t("Alert when")} className="flex flex-wrap gap-2">
-            {(["value", "kpi"] as const).map((k) => (
+            {(["value", "anomaly", "kpi"] as const).map((k) => (
               <button key={k} type="button" role="radio" aria-checked={editing.condition.kind === k} disabled={k === "kpi" && !kpiSections.length}
-                onClick={() => setEditing({ ...editing, condition: { ...editing.condition, kind: k }, tile_id: k === "kpi" ? kpiSections[0] : charts[0]?.id ?? "" })}
+                onClick={() => setEditing({ ...editing, condition: { ...editing.condition, kind: k }, tile_id: k === "kpi" ? kpiSections[0] : (editing.condition.kind === "kpi" ? charts[0]?.id ?? "" : editing.tile_id) })}
                 className={clsx("min-h-10 rounded-lg border px-3 text-sm disabled:opacity-40", editing.condition.kind === k ? "border-brand-600 bg-brand-50 font-semibold text-brand-700" : "border-slate-200")}>
-                {k === "value" ? t("A chart's value crosses a limit") : t("A KPI gets worse")}
+                {k === "value" ? t("A chart's value crosses a limit") : k === "anomaly" ? t("Something unusual happens") : t("A KPI gets worse")}
               </button>
             ))}
           </div>
@@ -530,6 +533,26 @@ export function AlertsModal({ dash, tiles, kpis, onClose }: { dash: Dashboard; t
                 <option value="at_risk">{t("At risk or off track")}</option>
               </Select>
             </Field>
+          ) : editing.condition.kind === "anomaly" ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <Field label={t("Tell me when the latest value is")}>
+                  <Select value={editing.condition.direction ?? "both"} onChange={(e) => setEditing({ ...editing, condition: { ...editing.condition, direction: e.target.value as "both" } })} className="w-56">
+                    <option value="both">{t("unusually high or low")}</option>
+                    <option value="up">{t("unusually high")}</option>
+                    <option value="down">{t("unusually low")}</option>
+                  </Select>
+                </Field>
+                <Field label={t("Sensitivity")}>
+                  <Select value={editing.condition.sensitivity ?? "medium"} onChange={(e) => setEditing({ ...editing, condition: { ...editing.condition, sensitivity: e.target.value as "medium" } })} className="w-52">
+                    <option value="high">{t("High (tells you sooner)")}</option>
+                    <option value="medium">{t("Medium")}</option>
+                    <option value="low">{t("Low (only big surprises)")}</option>
+                  </Select>
+                </Field>
+              </div>
+              <p className="text-xs text-slate-500">{t("For charts over dates. The latest finished day, week or month is compared with the 30 before it. Statistics on the server, no AI.")}</p>
+            </div>
           ) : (
             <div className="flex flex-wrap items-end gap-2">
               <Field label={t("When its value is")}>
@@ -564,7 +587,7 @@ export function AlertsModal({ dash, tiles, kpis, onClose }: { dash: Dashboard; t
                 {!a.enabled && <Badge>{t("Off")}</Badge>}
                 {a.last_error && <Badge tone="amber">{t("Check failed")}</Badge>}
                 {a.can_edit && <Button size="sm" variant="secondary" onClick={async () => { await post(`/alerts/${a.id}/check`); await refresh(); }}>{t("Check now")}</Button>}
-                {a.can_edit && <Button size="sm" variant="secondary" onClick={() => setEditing({ ...a, condition: { op: "gt", value: 0, status: "off_track", ...a.condition } })}>{t("Edit")}</Button>}
+                {a.can_edit && <Button size="sm" variant="secondary" onClick={() => setEditing({ ...a, condition: { op: "gt", value: 0, status: "off_track", sensitivity: "medium", direction: "both", ...a.condition } })}>{t("Edit")}</Button>}
                 {a.can_edit && <Button size="sm" variant="ghost" aria-label={t("Delete")} onClick={async () => { if (confirm(t("Delete this alert?"))) { await del(`/alerts/${a.id}`); await refresh(); } }}><Trash2 size={14} /></Button>}
               </div>
               {a.last_error && <p className="mt-1 text-xs text-amber-800">{a.last_error}</p>}

@@ -22,6 +22,8 @@ celery_app.conf.update(
         "dispatch-due-deliveries": {"task": "lumen.dispatch_due_deliveries", "schedule": 60.0},
         # Freshness checks can start failing without a sync
         "freshness-checks": {"task": "lumen.freshness_checks", "schedule": 900.0},
+        # Daily AI digests (sent once a day from 7:00, organisation time)
+        "ai-digests": {"task": "lumen.ai_digests", "schedule": 900.0},
     },
 )
 app = celery_app  # `celery -A app.worker` looks for `app`
@@ -72,3 +74,10 @@ def after_sync(dataset_id: int) -> None:
     from app.services.delivery import after_sync as run
 
     run(dataset_id)
+
+
+@celery_app.task(name="lumen.ai_digests")
+def ai_digests() -> int:
+    from app.services.ai.digest import run_digests
+
+    return run_digests()

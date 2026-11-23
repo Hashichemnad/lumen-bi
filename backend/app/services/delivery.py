@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.db import SessionLocal
 from app.models import Alert, Chart, Dashboard, Subscription, User
 from app.query import engine, rls
-from app.services import checks, kpi, notify, render
+from app.services import anomaly, checks, kpi, notify, render
 from app.services import dashboards as svc
 from app.services.sync import next_run
 
@@ -116,6 +116,9 @@ def alert_check(db: Session, alert: Alert, dash: Dashboard, user: User) -> tuple
         worse = kpi.STATUS_ORDER[item["status"]] >= kpi.STATUS_ORDER[cond.get("status", "off_track")]
         seen = f"{_fmt(item['actual'])} (target {_fmt(item['target'])}, {STATUS_TEXT[item['status']]})"
         return worse and item["status"] != "no_data", seen
+    if cond.get("kind") == "anomaly":
+        hit, seen, _ = anomaly.check(db, dash, alert.tile_id, principal, cond)
+        return hit, seen
     value, _ = kpi.tile_value(db, dash, alert.tile_id, principal)
     if value is None:
         return False, "no value"
@@ -129,6 +132,9 @@ def describe_condition(alert: Alert) -> str:
         return (
             "the KPI is off track" if cond.get("status") == "off_track" else "the KPI is at risk or off track"
         )
+    if cond.get("kind") == "anomaly":
+        way = {"up": "unusually high", "down": "unusually low"}.get(cond.get("direction", ""), "unusual")
+        return f"the latest value is {way}"
     sign, _ = OPS[cond.get("op", "gt")]
     return f"the value is {sign} {_fmt(float(cond.get('value', 0)))}"
 

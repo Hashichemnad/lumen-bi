@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, Check, Clock, Database, LayoutDashboard, PieC
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import AskData from "../components/AskData";
 import { Card } from "../components/ui";
 import { get, post } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -173,6 +174,8 @@ export default function Home() {
           {hasRole("creator") && <Link to="/data" className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-800 hover:bg-slate-50">{t("Connect data")}</Link>}
         </div>
       </div>
+
+      {hasRole("explorer") && <AskData />}
 
       <section aria-labelledby="fav-h" className="space-y-3">
         <div className="flex items-center justify-between">

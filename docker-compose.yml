@@ -63,6 +63,16 @@ services:
     <<: *backend
     command: ["celery", "-A", "app.worker", "beat", "--loglevel=info", "--schedule=/data/celerybeat-schedule"]
 
+  # Optional self-hosted AI model (Ollama), started only with `docker compose --profile ai up`.
+  # Then pull a model (`docker compose exec ollama ollama pull qwen2.5:14b`) and add it in Admin → AI as
+  # "Self-hosted" with the address http://ollama:11434/v1. A GPU makes it much faster.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -85,3 +95,4 @@ volumes:
   redis-data:
   lumen-data:
   caddy-data:
+  ollama-data:

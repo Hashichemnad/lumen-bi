@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models import Dataset, DatasetField, User
-from app.query import cache, duck, masking, rls
+from app.query import cache, duck, forecast, masking, rls
 from app.query.rls import Params, Principal
 from app.query.spec import Dimension, Filter, Measure, QuerySpec, TableCalc
 from app.semantic import model
@@ -587,14 +587,21 @@ def run(db: Session, spec: QuerySpec, principal: Principal) -> dict:
         cached = False
     else:
         cached = True
-    return {
-        "columns": [c.jsonable() for c in p.columns],
+    columns = [c.jsonable() for c in p.columns]
+    out = {
+        "columns": columns,
         **hit,
         "row_count": len(hit["rows"]),
         "restricted": p.restricted,
         "cached": cached,
-        "ms": round((time.perf_counter() - started) * 1000),
     }
+    if spec.forecast and spec.mode == "aggregate":
+        f = spec.forecast
+        out["forecast"] = forecast.compute(
+            columns, hit["rows"], f.periods, f.interval, f.seasonality, f.exclude_current
+        )
+    out["ms"] = round((time.perf_counter() - started) * 1000)
+    return out
 
 
 def stream_rows(db: Session, spec: QuerySpec, principal: Principal):

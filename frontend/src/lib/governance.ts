@@ -72,10 +72,13 @@ export interface SubscriptionItem {
 }
 
 export interface AlertCondition {
-  kind: "value" | "kpi";
+  kind: "value" | "kpi" | "anomaly";
   op?: "gt" | "gte" | "lt" | "lte";
   value?: number;
   status?: "off_track" | "at_risk";
+  /** anomaly: how unusual before it tells you, and which way */
+  sensitivity?: "low" | "medium" | "high";
+  direction?: "both" | "up" | "down";
 }
 
 export interface AlertItem {

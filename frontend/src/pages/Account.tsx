@@ -1,4 +1,5 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bot, Mail } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -7,7 +8,9 @@ import { Alert, Badge, Button, Card, Field, Input, PageHeader, Select } from "..
 import type { CalendarDisplay } from "../lib/dates";
 import { t } from "../lib/i18n";
 import { usePrefs, type Preferences } from "../lib/prefs";
-import { post } from "../lib/api";
+import { del, get, post } from "../lib/api";
+import { useAi, type ConnectedApp } from "../lib/ai";
+import { formatMoment } from "../lib/dates";
 import { useAuth } from "../lib/auth";
 import type { User } from "../lib/types";
 import { PASSWORD_HINT } from "./ResetPassword";
@@ -53,6 +56,64 @@ function Appearance() {
           </Select>
         </Field>
       </div>
+    </Card>
+  );
+}
+
+function DailyDigest() {
+  const { preferences, savePreferences } = usePrefs();
+  const can = useAi();
+  const [error, setError] = useState("");
+  const on = !!preferences.ai_digest;
+  const toggle = async () => {
+    setError("");
+    try {
+      await savePreferences({ ...preferences, ai_digest: !on });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Could not save"));
+    }
+  };
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold"><Mail size={17} className="text-brand-600" /> {t("Daily summary")}</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        {t("Each morning, an email with the KPIs on your favourite dashboards.")}{" "}
+        {can("digest") ? t("AI writes a few lines on what needs attention.") : t("Just the numbers (AI is not set up).")}
+      </p>
+      {error && <div className="mt-3"><Alert>{error}</Alert></div>}
+      <label className="mt-4 flex items-center gap-3 text-sm">
+        <input type="checkbox" checked={on} onChange={toggle} className="h-4 w-4" />
+        {t("Email me a daily summary")}
+      </label>
+    </Card>
+  );
+}
+
+function ConnectedApps() {
+  const qc = useQueryClient();
+  const apps = useQuery({ queryKey: ["connected-apps"], queryFn: () => get<ConnectedApp[]>("/me/connected-apps") });
+  const disconnect = async (a: ConnectedApp) => {
+    await del(`/me/connected-apps/${encodeURIComponent(a.client_id)}`);
+    await qc.invalidateQueries({ queryKey: ["connected-apps"] });
+  };
+  if (!apps.data?.length) return null;
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold"><Bot size={17} className="text-brand-600" /> {t("Connected AI apps")}</h2>
+      <p className="mt-1 text-sm text-slate-500">{t("These apps can read the dashboards and data you can see. They cannot change anything.")}</p>
+      <ul className="mt-3 divide-y divide-slate-100">
+        {apps.data.map((a) => (
+          <li key={a.client_id} className="flex items-center justify-between gap-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{a.name}</span>
+              <span className="block text-xs text-slate-500">
+                {a.last_used_at ? t("Last used {when}", { when: formatMoment(a.last_used_at) }) : t("Not used yet")}
+              </span>
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => disconnect(a)}>{t("Disconnect")}</Button>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
@@ -112,6 +173,8 @@ export default function Account() {
             {t("Sign out on all devices")}
           </Button>
         </Card>
+        <DailyDigest />
+        <ConnectedApps />
         {user.auth_provider === "local" && (
           <Card className="p-5">
             <h2 className="font-semibold">{t("Change password")}</h2>

@@ -35,7 +35,7 @@ export interface User {
   created_at: string;
   groups: GroupRef[];
   sign_in_methods: SignInMethod[];
-  preferences?: { theme?: "classic" | "advanced" | "analyst"; language?: "en" | "ar"; calendar?: "gregorian" | "hijri" | "both" };
+  preferences?: { theme?: "classic" | "advanced" | "analyst"; language?: "en" | "ar"; calendar?: "gregorian" | "hijri" | "both"; ai_digest?: boolean };
 }
 
 export interface Group {
@@ -175,6 +175,9 @@ export interface Dataset {
   owner_id: number | null;
   owner_name: string;
   active_run: SyncRun | null;
+  /** Only self-hosted AI models may see it (inherited: built from a sensitive dataset) */
+  sensitive: boolean;
+  inherited_sensitive: boolean;
   updated_at: string;
 }
 
@@ -270,6 +273,19 @@ export interface QueryResult {
   restricted: boolean;
   cached: boolean;
   ms: number;
+  /** Future periods in the same layout as rows, with the likely range (when the query asked for one) */
+  forecast?: ForecastResult;
+}
+
+export interface ForecastResult {
+  rows: unknown[][];
+  lower: unknown[][];
+  upper: unknown[][];
+  method: "holt_winters" | "holt" | "none";
+  season: number | null;
+  interval: number;
+  periods: number;
+  error?: string;
 }
 
 // ---------- model ----------

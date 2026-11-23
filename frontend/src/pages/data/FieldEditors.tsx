@@ -2,7 +2,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Plus, Trash2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { FormulaHelper } from "../../components/AiTools";
 import { Alert, Badge, Button, Field as FormField, Input, Modal, Select } from "../../components/ui";
+import { useAi } from "../../lib/ai";
 import { get, patch, post } from "../../lib/api";
 import type { Field, FormulaCheck, GroupConfig, Parameter } from "../../lib/types";
 import { FUNCTION_GROUPS } from "./functions";
@@ -68,6 +70,7 @@ export function CalculatedFieldModal({ datasetId, fields, params, existing, onCl
   const qc = useQueryClient();
   const [name, setName] = useState(existing?.name ?? "");
   const [formula, setFormula] = useState(existing?.formula ?? "");
+  const canAi = useAi();
   const [result, setResult] = useState<FormulaCheck | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
@@ -131,6 +134,9 @@ export function CalculatedFieldModal({ datasetId, fields, params, existing, onCl
               placeholder={t("[Sales] - [Cost]")} value={formula} onChange={(e) => setFormula(e.target.value)} />
           </FormField>
           <CheckResult result={result} formula={formula} />
+          {canAi("formula") && (
+            <FormulaHelper datasetId={datasetId} onUse={(a) => { setFormula(a.formula); if (!name.trim()) setName(a.name); }} />
+          )}
           <details className="rounded-lg border border-slate-200 p-3 text-sm">
             <summary className="cursor-pointer font-medium text-slate-700">{t("Functions")}</summary>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">

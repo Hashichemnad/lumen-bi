@@ -171,7 +171,7 @@ export default function DatasetPage() {
 
       {tab === "model" && <ModelTab datasetId={d.id} canEdit={canEdit} />}
 
-      {tab === "security" && <SecurityTab datasetId={d.id} canEdit={canEdit} columns={(d.columns ?? []).map((c) => c.name)} />}
+      {tab === "security" && <SecurityTab datasetId={d.id} canEdit={canEdit} columns={(d.columns ?? []).map((c) => c.name)} dataset={d} />}
       {tab === "quality" && <QualityTab datasetId={d.id} columns={(d.columns ?? []).map((c) => c.name)} canEdit={canEdit} />}
 
       {tab === "history" && (

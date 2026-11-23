@@ -39,6 +39,7 @@ class Preferences(BaseModel):
     theme: Theme | None = None
     language: Language | None = None
     calendar: CalendarDisplay | None = None
+    ai_digest: bool | None = None  # a short AI summary of favourite dashboards each morning, by email
 
 
 def regional(db: Session) -> RegionalSettings:

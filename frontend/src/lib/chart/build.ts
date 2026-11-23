@@ -213,6 +213,8 @@ export function regression(points: [number, number][]): [number, number] | null 
 const REF_NAMES: Record<string, string> = { avg: "Average", median: "Median", min: "Minimum", max: "Maximum", constant: "" };
 
 // ------------------------------------------------------------------ bars, lines, areas, stacked, combo
+const BAND = "\u200bband:"; // hidden helper series of forecast ranges (never shown in tooltips or legends)
+
 function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const L = layout(cfg);
   const notes: string[] = [];
@@ -234,7 +236,12 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
   const catLabel = (row: Row) => (cats.length ? cats.map((p) => R.text(row, p)).join(" · ") : "All");
   const categories: string[] = [];
   const catIndex = new Map<string, number>();
-  for (const row of rows) {
+  const stacked = type === "stacked" || (barLike && !!segmentDim) || (type === "area" && !!seriesDim);
+  // Forecast periods (line and area over a date): extra categories after the real ones
+  const fc = (type === "line" || type === "area") && !stacked && !segmentDim ? R.r.forecast : undefined;
+  const fcRows = fc && !fc.error ? fc.rows : [];
+  if (fc?.error) notes.push(t(fc.error));
+  for (const row of [...rows, ...fcRows]) {
     const k = catLabel(row);
     if (!catIndex.has(k)) {
       catIndex.set(k, categories.length);
@@ -243,8 +250,9 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
   }
   const measures = L.values;
   const series: Obj[] = [];
+  const fcSeries: Obj[] = [];
+  const fcMeasure = new Map<number, Pill>();
   const legendItems: { name: string; icon: string }[] = [];
-  const stacked = type === "stacked" || (barLike && !!segmentDim) || (type === "area" && !!seriesDim);
   const percent = type === "stacked" && !!cfg.options.percentStack;
   const labelsAll = cfg.options.labels === "all";
   const labelsEnds = cfg.options.labels === "ends";
@@ -294,6 +302,45 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
     legendItems.push(kind === "bar" || type === "area" ? { name, icon: "roundRect" } : { name, icon: LINE_ICON });
   };
 
+  /** A dashed forecast line from the last real point, over a shaded band of the likely range. */
+  const addForecast = (name: string, color: string, m: Pill, match: (row: Row) => boolean, base: Obj[]) => {
+    const idx = R.index.get(m.id);
+    if (!fc || !fcRows.length || idx === undefined) return;
+    const data: Obj[] = categories.map(() => ({ value: null, row: -1 }));
+    const lo: (number | null)[] = categories.map(() => null);
+    const hi: (number | null)[] = categories.map(() => null);
+    let any = false;
+    fcRows.forEach((row, i) => {
+      const v = row[idx];
+      const ci = catIndex.get(catLabel(row));
+      if (!match(row) || typeof v !== "number" || ci === undefined) return;
+      data[ci] = { value: v, row: -1 };
+      lo[ci] = fc.lower[i]?.[idx] as number;
+      hi[ci] = fc.upper[i]?.[idx] as number;
+      any = true;
+    });
+    if (!any) return;
+    let last = -1;
+    base.forEach((d, i) => d.value !== null && d.value !== undefined && (last = i));
+    if (last >= 0 && data[last].value === null) {
+      data[last] = { value: base[last].value, row: -1 };
+      lo[last] = hi[last] = base[last].value as number;
+    }
+    const stack = `${BAND}${fcSeries.length}`;
+    // stackStrategy "all": the band is stacked on the lower bound even when that bound is below zero
+    const quiet = { symbol: "none", silent: true, lineStyle: { opacity: 0 }, tooltip: { show: false }, z: 1, smooth: !!cfg.options.smooth, stackStrategy: "all" };
+    fcSeries.push({ ...quiet, name: `${BAND}lo${name}`, type: "line", stack, data: lo.map((v) => ({ value: v })) });
+    fcSeries.push({
+      ...quiet, name: `${BAND}hi${name}`, type: "line", stack, areaStyle: { color, opacity: 0.14 },
+      data: hi.map((v, i) => ({ value: v === null || lo[i] === null ? null : v - (lo[i] as number) })),
+    });
+    fcSeries.push({
+      name: t("{v0} (forecast)", { v0: name }), type: "line", data, z: 3, smooth: !!cfg.options.smooth,
+      lineStyle: { width: 2, color, type: "dashed" }, itemStyle: { color }, symbol: "circle", symbolSize: 6, showSymbol: false,
+    });
+    fcMeasure.set(fcSeries.length - 1, m);
+  };
+
   const splitDim = seriesDim ?? segmentDim;
   if (splitDim) {
     const present = rows.map((r) => R.get(r, splitDim));
@@ -324,6 +371,7 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
         const name = measures.length > 1 ? `${label} · ${R.label(m)}` : label;
         const color = seriesDim ? (key === OTHER_LABEL ? OTHER : cm.color(key)) : CATEGORICAL[mi % CATEGORICAL.length];
         make(name, color, m, barLike ? "bar" : "line", data, stacked ? `s${mi}` : undefined);
+        addForecast(name, color, m, (row) => (cm.folded(R.get(row, splitDim)) ? OTHER_LABEL : String(R.get(row, splitDim))) === key, data);
       }
     });
     if (dropped) notes.push(`Some ${R.label(splitDim)} values are not shown: averages and similar totals cannot be combined into "Other". Filter to see them.`);
@@ -338,6 +386,7 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
       });
       const kind = type === "combo" ? (mi === 0 ? "bar" : "line") : barLike ? "bar" : "line";
       make(R.label(m), CATEGORICAL[mi], m, kind, data);
+      addForecast(R.label(m), CATEGORICAL[mi], m, () => true, data);
     });
   }
 
@@ -386,6 +435,12 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
     }
   }
 
+  const baseCount = series.length;
+  if (fcSeries.length) {
+    series.push(...fcSeries);
+    const pct = Math.round((fc?.interval ?? 0.95) * 100);
+    notes.push(t("Dashed line: forecast. The shaded band is where values will likely fall ({v0}% of the time).", { v0: pct }));
+  }
   const extra = [...L.tooltip, ...L.label.filter((p) => !measures.includes(p))];
   const axisTrigger = !barLike || type === "combo";
   const tooltip: Obj = {
@@ -394,14 +449,16 @@ function cartesian(type: ChartType, cfg: ChartConfig, R: Result, identity: unkno
     axisPointer: axisTrigger ? { type: "line", lineStyle: { color: INK.axis, width: 1 } } : undefined,
     formatter: (params: unknown) => {
       const list = (Array.isArray(params) ? params : [params]) as { seriesName: string; color: string; value: number | null; data: Obj; name: string; seriesIndex: number }[];
-      const shown = list.filter((p) => p.seriesName !== "Trend" && p.value !== null && p.value !== undefined);
+      const shown = list.filter((p) => p.seriesName !== "Trend" && !p.seriesName.startsWith(BAND) && p.value !== null && p.value !== undefined);
       if (!shown.length) return "";
       const row = shown.length === 1 && typeof shown[0].data?.row === "number" && (shown[0].data.row as number) >= 0 ? R.r.rows[shown[0].data.row as number] : undefined;
       const segment = segmentDim && row ? ` · ${R.text(row, segmentDim)}` : "";
       return tooltipBox(
         shown[0].name + segment,
         shown.map((p) => {
-          const m = measures[Math.min(measures.length - 1, splitDim ? Math.floor(p.seriesIndex / Math.max(1, series.length / Math.max(1, measures.length))) : p.seriesIndex)];
+          const m = p.seriesIndex >= baseCount
+            ? fcMeasure.get(p.seriesIndex - baseCount)
+            : measures[Math.min(measures.length - 1, splitDim ? Math.floor(p.seriesIndex / Math.max(1, baseCount / Math.max(1, measures.length))) : p.seriesIndex)];
           return {
             color: p.color,
             value: percent ? `${((p.value as number) * 100).toFixed(1)}%` : formatValue(p.value, m ? R.col(m) : undefined),

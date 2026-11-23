@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import { X } from "lucide-react";
 
+import { createPortal } from "react-dom";
+
 import { formatMoment } from "../lib/dates";
 import { t } from "../lib/i18n";
 import {
@@ -121,7 +123,8 @@ export function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // In a portal, so a dialog opened from inside a dashboard tile (CSS transform) still covers the page
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16">
       <div role="dialog" aria-modal="true" aria-label={title}
         className={clsx("w-full rounded-xl bg-white shadow-xl", wide ? "max-w-2xl" : "max-w-md")}>
@@ -134,7 +137,8 @@ export function Modal({
         <div className="space-y-4 px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

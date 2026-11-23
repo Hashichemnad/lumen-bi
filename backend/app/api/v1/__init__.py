@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import csrf_protect
 from app.api.v1 import (
     admin,
+    ai,
     auth,
     boundaries,
     charts,
@@ -11,6 +12,7 @@ from app.api.v1 import (
     governance,
     groups,
     model,
+    oauth,
     query,
     settings,
     sharing,
@@ -35,3 +37,5 @@ api_router.include_router(settings.router)
 api_router.include_router(workspaces.router)
 api_router.include_router(governance.router)
 api_router.include_router(sharing.router)
+api_router.include_router(ai.router)
+api_router.include_router(oauth.router)

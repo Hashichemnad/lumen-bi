@@ -1,5 +1,6 @@
 """All ORM models. Import from here so Alembic sees every table."""
 
+from app.models.ai import AiProvider, AiRequest, OAuthClient, OAuthCode, OAuthToken
 from app.models.audit import AuditLog
 from app.models.boundary import MapBoundary
 from app.models.chart import Chart
@@ -24,6 +25,11 @@ from app.models.user import Group, PasswordResetToken, Role, User, user_groups
 from app.models.workspace import Workspace, WorkspaceMember
 
 __all__ = [
+    "AiProvider",
+    "AiRequest",
+    "OAuthClient",
+    "OAuthCode",
+    "OAuthToken",
     "Alert",
     "ColumnMask",
     "Comment",

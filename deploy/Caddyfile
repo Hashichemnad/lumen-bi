@@ -5,6 +5,13 @@
 		reverse_proxy api:8000
 	}
 
+	# MCP server and its OAuth endpoints, for Claude and other AI apps (/oauth/authorize is a page of the
+	# web app, so it is not listed here)
+	@mcp path /mcp /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/* /.well-known/oauth-authorization-server /oauth/token /oauth/register /oauth/revoke
+	handle @mcp {
+		reverse_proxy api:8000
+	}
+
 	handle {
 		root * /srv
 		try_files {path} /index.html

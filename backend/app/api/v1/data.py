@@ -34,6 +34,7 @@ from app.schemas import (
 from app.semantic import derived, model
 from app.semantic.formula import FormulaError, quote_ident
 from app.services import audit, snapshots
+from app.services.ai import providers as ai_providers
 from app.services.sync import (
     active_run,
     build_connector,
@@ -382,6 +383,7 @@ def _ds_out(db: Session, ds: Dataset) -> DatasetOut:
     out.owner_name = owner.name or owner.email if owner else ""
     run = active_run(db, ds.id)
     out.active_run = SyncRunOut.model_validate(run) if run else None
+    out.inherited_sensitive = not ds.sensitive and ai_providers.is_sensitive(db, ds)
     return out
 
 
