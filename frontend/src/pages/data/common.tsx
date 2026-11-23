@@ -52,8 +52,10 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function sourceLabel(d: Pick<Dataset, "source">): string {
-  return d.source.object ? d.source.object : "Custom SQL query";
+export function sourceLabel(d: Pick<Dataset, "source" | "kind" | "parents">): string {
+  if (d.kind === "join") return `Join of ${d.parents.map((p) => p.name).join(" + ")}`;
+  if (d.kind === "union") return `Union of ${d.parents.map((p) => p.name).join(", ")}`;
+  return d.source.object ? d.source.object : "Custom query";
 }
 
 // ---------- schedules: friendly presets <-> cron ----------

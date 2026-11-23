@@ -135,14 +135,32 @@ export interface SyncRun {
   finished_at: string | null;
 }
 
+export interface DatasetRef {
+  id: number;
+  name: string;
+}
+
+export interface JoinSpec {
+  base: number;
+  joins: { dataset: number; type: "left" | "inner" | "full"; alias: string; on: { left: string; right: string }[] }[];
+}
+
+export interface UnionSpec {
+  datasets: number[];
+  source_column: string;
+}
+
 export interface Dataset {
   id: number;
   name: string;
   description: string;
-  connection_id: number;
+  kind: "source" | "join" | "union";
+  parents: DatasetRef[];
+  dependents: DatasetRef[];
+  connection_id: number | null;
   connection_name: string;
   connection_type: string;
-  source: { object?: string; sql?: string };
+  source: { object?: string; sql?: string; join?: JoinSpec; union?: UnionSpec };
   sync_mode: "full" | "incremental";
   incremental_column: string | null;
   primary_key: string[];
@@ -163,4 +181,63 @@ export interface Preview {
   columns: string[];
   rows: unknown[][];
   version: number;
+}
+
+// ---------- model ----------
+export type FieldKind = "column" | "calculated" | "group" | "bin";
+
+export interface FieldFormat {
+  type: "number" | "currency" | "percent" | "date" | "datetime" | "text";
+  decimals?: number;
+  currency?: string;
+}
+
+export interface GroupConfig {
+  source: string;
+  groups: { name: string; values: (string | number)[] }[];
+  other?: string;
+}
+
+export interface Field {
+  id: number;
+  name: string;
+  kind: FieldKind;
+  label: string;
+  description: string;
+  role: "dimension" | "measure";
+  data_type: string;
+  format: FieldFormat;
+  default_agg: string;
+  hidden: boolean;
+  formula: string | null;
+  config: Partial<GroupConfig> & { size?: number };
+  is_aggregate: boolean;
+  error: string | null;
+  missing: boolean;
+  position: number;
+  used_by: string[];
+}
+
+export interface FormulaCheck {
+  ok: boolean;
+  type: string | null;
+  is_aggregate: boolean;
+  error: string | null;
+  pos: number | null;
+  sample: unknown[];
+}
+
+export interface Hierarchy {
+  id: number;
+  name: string;
+  levels: string[];
+}
+
+export interface Parameter {
+  id: number;
+  name: string;
+  description: string;
+  data_type: "number" | "integer" | "string" | "date" | "boolean";
+  default_value: unknown;
+  allowed_values: unknown[];
 }

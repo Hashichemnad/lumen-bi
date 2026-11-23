@@ -9,8 +9,8 @@
 | 3 | SSO: Microsoft Entra ID, UAE PASS | Done (real Microsoft/UAE PASS sign-in still to be tried by the owner) |
 | 4 | Connector framework + files + Oracle (+ PostgreSQL) | Done (Oracle still to be tried against a real database) |
 | 5 | Salesforce and REST connectors | Done (to be tried against a real Salesforce org) |
-| 6 | Semantic layer | Next |
-| 7 | Query engine + row-level security | — |
+| 6 | Semantic layer | Done |
+| 7 | Query engine + row-level security | Next |
 | 8 | Chart builder UI | — |
 | 9 | Dashboards UI | — |
 | 10 | Exports, subscriptions, alerts, embedding | — |
@@ -119,15 +119,46 @@ Known limits (by design for now):
 - Docs: `docs/CONNECTORS.md` (Salesforce connected-app steps for both sign-in methods, REST settings).
 - Tests: 124 backend tests (32 new). Browser test against the fakes running as real servers.
 
-## Next: milestone 6 (semantic layer)
+## What exists (milestone 6)
 
-- `dataset_fields`: label, description, role (dimension/measure), format (number, currency AED, percent,
-  date), hidden, default aggregation; auto-filled from columns at each sync, user edits kept.
-- Calculated fields: formula language (arithmetic, IF/CASE, date and string functions) parsed to an AST and
-  compiled to DuckDB SQL (never string-concatenated), validated against fields; preview a formula.
-- Joins/relationships between datasets (inner, left, full) and unions; hierarchies (date year→quarter→
-  month→week→day, custom); groups and bins; parameters.
-- Data UI: a "Model" tab per dataset (fields table, formula editor, hierarchies) and a relationships editor.
+- Formula language `app/semantic/formula.py`: tokenizer → parser (AST) → type-checking compiler to DuckDB SQL.
+  `[Field]`, `@param`/`@[param name]`, `#date#`, operators, IF/ELSEIF/CASE, IN, IS NULL, ~60 whitelisted
+  functions (aggregates, logic, number, text, date, conversion). Tracks row vs aggregate level (mixing is an
+  error), detects cycles, reports errors with character positions. Literals escaped, identifiers quoted,
+  division by zero → NULL. Never pastes user text into SQL.
+- Models `dataset_fields` (column/calculated/group/bin; label, description, role, type, format, default
+  aggregation, hidden, formula, config, is_aggregate, error, missing, position), `hierarchies`, `parameters`;
+  `datasets.kind` (source/join/union) and nullable `connection_id`. Migration `0004` (server default for kind).
+- `app/semantic/model.py`: defaults for new columns (prettified labels, role heuristics, formats),
+  `reconcile_fields` after every successful sync (edits kept, new columns added, vanished ones marked
+  missing), `build_context` (fields + parameter values → compiler context, optional table alias for joins
+  in M7), `recheck_calculated` (type/aggregate/error per field), dependency helpers.
+- `app/semantic/derived.py`: joined (left/inner/full, multi-column keys, chained joins with `alias.column`
+  names) and unioned (by name, optional source column) datasets, materialised from parents' snapshots with
+  DuckDB; validated (columns, cycles); rebuilt automatically when a parent syncs (`trigger = upstream`);
+  parents cannot be deleted while used.
+- API `app/api/v1/model.py`: fields list/create/update/reorder/delete, formula check with sample values,
+  distinct values of a field, hierarchies CRUD, parameters CRUD (typed defaults, allowed values, usage
+  checks). Renaming a calculated field rewrites references. Preview includes row-level calculated fields.
+- Frontend: dataset **Model** tab (field table with inline label/role/format/aggregation/hidden; calculated
+  field editor with live check, error highlight, field/parameter picker and function reference; group and
+  bin editors; hierarchies; parameters) and **Join or combine datasets** builder with key guessing.
+- Docs: `docs/MODELLING.md` (fields, formula reference, groups/bins, hierarchies, parameters, joins).
+- Tests: 204 backend tests (62 formula unit tests incl. injection attempts, 18 model/join API tests).
+  Browser test: model edits, formula error and fix, aggregate field, group, parameter, hierarchy, preview of
+  calculated columns, join builder → joined dataset.
+
+## Next: milestone 7 (query engine + row-level security)
+
+- Query spec (dimensions with date grain, measures with aggregation or aggregate fields, filters, sort,
+  limit, parameters) compiled with `semantic.model.build_context` into one parameterised DuckDB query.
+- Table calculations: running total, % of total, difference / % change from previous, rank, moving average.
+- Row-level security rules per dataset (column ↔ user attribute, entitlement dataset, groups), applied in
+  the engine before anything else; fail closed; admins bypass; "preview as user".
+- Result cache in Redis keyed by dataset version + query + security context.
+- `POST /query`, `POST /query/export`, `GET /fields/{id}/values` for filters; preview for non-creators then
+  goes through the engine.
+- Oracle live mode (optional) through the same compiler.
 
 ## Open questions for the owner
 

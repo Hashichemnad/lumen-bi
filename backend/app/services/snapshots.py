@@ -160,12 +160,16 @@ def delete_all(dataset_id: int) -> None:
     shutil.rmtree(dataset_dir(dataset_id), ignore_errors=True)
 
 
-def preview(path: Path, limit: int = 100) -> tuple[list[str], list[list[Any]]]:
+def preview(
+    path: Path, limit: int = 100, extra: list[tuple[str, str]] | None = None
+) -> tuple[list[str], list[list[Any]]]:
+    """First rows; `extra` adds (name, compiled SQL expression) columns such as calculated fields."""
     con = duckdb.connect()
     try:
         # Show times in the organisation's time zone, whatever the server's own zone is
         con.execute("SET TimeZone = ?", [get_settings().timezone])
-        cur = con.execute(f"SELECT * FROM read_parquet({_lit(path)}) LIMIT {int(limit)}")
+        more = "".join(f", {sql} AS {_q(name)}" for name, sql in extra or [])
+        cur = con.execute(f"SELECT *{more} FROM read_parquet({_lit(path)}) LIMIT {int(limit)}")
         names = [d[0] for d in cur.description]
         return names, [list(r) for r in cur.fetchall()]
     finally:

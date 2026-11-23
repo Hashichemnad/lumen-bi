@@ -3,9 +3,9 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–5 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> Status: milestones 1–6 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
 > roles, groups, audit log; data connections: files, Oracle, PostgreSQL, Salesforce, REST APIs with
-> scheduled sync).
+> scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)
@@ -82,6 +82,11 @@ Data → add a connection (upload a CSV/Excel/Parquet file, Oracle, PostgreSQL, 
 then create datasets from its tables, objects or endpoints, or from a query. Setup steps:
 [docs/CONNECTORS.md](docs/CONNECTORS.md). Each dataset is copied into a fast local store and refreshed on its schedule
 (full or incremental). Use a **read-only** database user for connections.
+
+## Modelling
+
+Dataset → Model: labels, formats, calculated fields (Tableau-style formulas), groups, bins, hierarchies,
+parameters; Data → Join or combine datasets. Guide and formula reference: [docs/MODELLING.md](docs/MODELLING.md).
 
 ## Single sign-on (Microsoft, UAE PASS)
 

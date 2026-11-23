@@ -31,7 +31,9 @@ def store_secrets(conn: Connection, secrets: dict[str, str]) -> None:
     conn.secrets_enc = encrypt(json.dumps(secrets)) if secrets else ""
 
 
-def build_connector(conn: Connection) -> Connector:
+def build_connector(conn: Connection | None) -> Connector:
+    if conn is None:
+        raise ConnectorError("This dataset has no connection.")
     return connector_class(conn.type)(conn.config or {}, secrets_of(conn))
 
 
@@ -118,26 +120,34 @@ def execute(run_id: int) -> None:
 
 
 def _sync(db: Session, dataset: Dataset, run: SyncRun) -> None:
-    connector = build_connector(dataset.connection)
-    current = snapshots.snapshot_path(dataset.id, dataset.current_version)
-    incremental = (
-        dataset.sync_mode == "incremental"
-        and dataset.incremental_column
-        and current is not None
-        and connector.supports_incremental
-    )
-    since = snapshots.max_value(current, dataset.incremental_column) if incremental else None
-    run.mode = "incremental" if incremental and since is not None else "full"
-    db.commit()
+    from app.semantic import derived
+    from app.semantic.model import reconcile_fields
 
-    batches = connector.extract(
-        dataset.source,
-        since=since if run.mode == "incremental" else None,
-        incremental_column=dataset.incremental_column,
-        # With a primary key, re-reading rows at the last timestamp is safe (they replace themselves) and
-        # avoids missing rows written in the same second as the previous sync
-        inclusive=bool(dataset.primary_key),
-    )
+    current = snapshots.snapshot_path(dataset.id, dataset.current_version)
+    if dataset.kind in derived.DERIVED_KINDS:
+        # Joins and unions are rebuilt in full from their parents' current snapshots
+        run.mode = "full"
+        db.commit()
+        batches = derived.extract(db, dataset)
+    else:
+        connector = build_connector(dataset.connection)
+        incremental = (
+            dataset.sync_mode == "incremental"
+            and dataset.incremental_column
+            and current is not None
+            and connector.supports_incremental
+        )
+        since = snapshots.max_value(current, dataset.incremental_column) if incremental else None
+        run.mode = "incremental" if incremental and since is not None else "full"
+        db.commit()
+        batches = connector.extract(
+            dataset.source,
+            since=since if run.mode == "incremental" else None,
+            incremental_column=dataset.incremental_column,
+            # With a primary key, re-reading rows at the last timestamp is safe (they replace themselves)
+            # and avoids missing rows written in the same second as the previous sync
+            inclusive=bool(dataset.primary_key),
+        )
     result = snapshots.write_snapshot(
         dataset.id,
         batches,
@@ -158,8 +168,13 @@ def _sync(db: Session, dataset: Dataset, run: SyncRun) -> None:
         dataset.columns = [c.dict() for c in result.columns]
     run.status, run.finished_at = "success", now
     dataset.last_status, dataset.last_synced_at = "success", now
+    reconcile_fields(db, dataset)  # new columns get fields; labels/formats people set are kept
     db.commit()
     snapshots.prune(dataset.id, dataset.current_version)
+    if result is not None:
+        # Joined/combined datasets built on this one are refreshed with the new data
+        for child in derived.dependents(db, dataset.id):
+            enqueue(db, child, "upstream")
 
 
 def _notify_failure(db: Session, dataset: Dataset, run: SyncRun) -> None:

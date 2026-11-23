@@ -39,10 +39,13 @@ class Dataset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
-    connection_id: Mapped[int] = mapped_column(ForeignKey("connections.id", ondelete="CASCADE"), index=True)
-    source: Mapped[dict] = mapped_column(
-        JSONType, default=dict
-    )  # {"object": "SCHEMA.TABLE"} or {"sql": "..."}
+    # kind: source (from a connection) | join | union (built from other datasets; no connection)
+    kind: Mapped[str] = mapped_column(String(20), default="source")
+    connection_id: Mapped[int | None] = mapped_column(
+        ForeignKey("connections.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    # {"object": "SCHEMA.TABLE"} | {"sql": "..."} | {"join": {...}} | {"union": {...}}
+    source: Mapped[dict] = mapped_column(JSONType, default=dict)
     sync_mode: Mapped[str] = mapped_column(String(20), default="full")  # full | incremental
     incremental_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     primary_key: Mapped[list] = mapped_column(JSONType, default=list)
@@ -57,11 +60,12 @@ class Dataset(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
-    connection: Mapped[Connection] = relationship(back_populates="datasets")
+    connection: Mapped[Connection | None] = relationship(back_populates="datasets")
 
     def __init__(self, **kwargs):
         for key, value in {
             "description": "",
+            "kind": "source",
             "source": {},
             "sync_mode": "full",
             "primary_key": [],

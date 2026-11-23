@@ -9,7 +9,9 @@ import { del, get, post } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import type { Connection, Dataset, Preview, SyncRun } from "../../lib/types";
 import { RunBadge, StatusBadge, describeSchedule, formatNumber, sourceLabel } from "./common";
+import CombineModal from "./CombineModal";
 import DatasetForm from "./DatasetForm";
+import ModelTab from "./ModelTab";
 
 function cell(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -28,7 +30,7 @@ export default function DatasetPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, hasRole } = useAuth();
-  const [tab, setTab] = useState<"preview" | "columns" | "history">("preview");
+  const [tab, setTab] = useState<"preview" | "model" | "history">("preview");
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,7 +52,7 @@ export default function DatasetPage() {
   const conn = useQuery({
     queryKey: ["connection", ds.data?.connection_id],
     queryFn: () => get<Connection>(`/connections/${ds.data!.connection_id}`),
-    enabled: !!ds.data,
+    enabled: !!ds.data?.connection_id,
   });
 
   if (!ds.data) return ds.error ? <Alert>{(ds.error as Error).message}</Alert> : null;
@@ -83,7 +85,7 @@ export default function DatasetPage() {
           <Button onClick={syncNow} disabled={!!d.active_run}>
             <RefreshCw size={16} className={d.active_run ? "animate-spin" : ""} /> {d.active_run ? "Syncing…" : "Sync now"}
           </Button>
-          {canEdit && <Button variant="secondary" onClick={() => setEditing(true)} disabled={!conn.data}>Settings</Button>}
+          {canEdit && <Button variant="secondary" onClick={() => setEditing(true)} disabled={d.kind === "source" && !conn.data}>Settings</Button>}
           {canEdit && <Button variant="danger" onClick={remove}>Delete</Button>}
         </>} />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
@@ -104,14 +106,27 @@ export default function DatasetPage() {
           </Card>
         ))}
       </div>
-      <p className="mb-4 text-sm text-slate-600">
-        From <Link className="text-brand-600 hover:underline" to={`/data/connections/${d.connection_id}`}>{d.connection_name}</Link>
-        {" · "}{sourceLabel(d)}{" · "}{d.sync_mode === "incremental" ? `incremental by ${d.incremental_column}${d.primary_key.length ? `, key ${d.primary_key.join(" + ")}` : ""}` : "full refresh"}
-      </p>
+      {d.kind === "source" ? (
+        <p className="mb-4 text-sm text-slate-600">
+          From <Link className="text-brand-600 hover:underline" to={`/data/connections/${d.connection_id}`}>{d.connection_name}</Link>
+          {" · "}{sourceLabel(d)}{" · "}{d.sync_mode === "incremental" ? `incremental by ${d.incremental_column}${d.primary_key.length ? `, key ${d.primary_key.join(" + ")}` : ""}` : "full refresh"}
+        </p>
+      ) : (
+        <p className="mb-4 text-sm text-slate-600">
+          {d.kind === "join" ? "Join of " : "Union of "}
+          {d.parents.map((p, i) => <span key={p.id}>{i > 0 && (d.kind === "join" ? " + " : ", ")}
+            <Link className="text-brand-600 hover:underline" to={`/data/datasets/${p.id}`}>{p.name}</Link></span>)}
+          {" · rebuilt automatically when any of them syncs"}
+        </p>
+      )}
+      {d.dependents.length > 0 && (
+        <p className="-mt-2 mb-4 text-sm text-slate-600">Used by {d.dependents.map((x, i) => <span key={x.id}>{i > 0 && ", "}
+          <Link className="text-brand-600 hover:underline" to={`/data/datasets/${x.id}`}>{x.name}</Link></span>)}</p>
+      )}
       {d.source.sql && <pre className="mb-4 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{d.source.sql}</pre>}
 
       <div className="mb-3 flex gap-1 border-b border-slate-200">
-        {(["preview", "columns", "history"] as const).map((t) => (
+        {(["preview", "model", "history"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx("-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize",
               tab === t ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
@@ -146,21 +161,7 @@ export default function DatasetPage() {
         </Card>
       )}
 
-      {tab === "columns" && (
-        <Card>
-          <Table head={["Column", "Type"]}>
-            {d.columns.map((c) => (
-              <tr key={c.name}>
-                <td className="px-4 py-2 font-medium">{c.name}</td>
-                <td className="px-4 py-2 text-slate-600">{c.type}</td>
-              </tr>
-            ))}
-          </Table>
-          <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-            Labels, formats and calculated fields come with the data-modelling milestone.
-          </p>
-        </Card>
-      )}
+      {tab === "model" && <ModelTab datasetId={d.id} canEdit={canEdit} />}
 
       {tab === "history" && (
         <Card>
@@ -192,7 +193,8 @@ export default function DatasetPage() {
         </Card>
       )}
 
-      {editing && conn.data && <DatasetForm connection={conn.data} existing={d} onClose={() => setEditing(false)} />}
+      {editing && d.kind === "source" && conn.data && <DatasetForm connection={conn.data} existing={d} onClose={() => setEditing(false)} />}
+      {editing && d.kind !== "source" && <CombineModal existing={d} onClose={() => setEditing(false)} />}
     </>
   );
 }
