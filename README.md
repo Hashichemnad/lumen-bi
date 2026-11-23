@@ -3,10 +3,10 @@
 Self-hosted business intelligence: connect company systems (Salesforce, Oracle, REST APIs, files), sync
 their data, and build interactive dashboards where each person sees only the data they are allowed to see.
 
-> Status: milestones 1–8 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
+> Status: milestones 1–9 of 12 are done (foundation; sign-in with email, Microsoft and UAE PASS; users,
 > roles, groups, audit log; data connections: files, Oracle, PostgreSQL, Salesforce, REST APIs with
 > scheduled sync; data modelling: fields, calculated fields, groups, hierarchies, parameters, joins; query
-> engine with table calculations, caching and row-level security; chart builder).
+> engine with table calculations, caching and row-level security; chart builder; dashboards).
 > See [docs/PROGRESS.md](docs/PROGRESS.md) and the spec in [docs/SPEC.md](docs/SPEC.md).
 
 ## Run it with Docker (recommended)
@@ -93,6 +93,12 @@ parameters; Data → Join or combine datasets. Guide and formula reference: [doc
 
 Charts → New chart: drag fields to shelves, pick a type in Show Me (bars, lines, maps, heat maps, tables,
 pivots, numbers…), filter, drill and export. Guide: [docs/CHARTS.md](docs/CHARTS.md).
+
+## Dashboards
+
+Dashboards → New dashboard: tiles of charts, text, images and web pages; filters for all charts, click to
+filter, drill down, tabs, phone layout; share with people or groups (each sees only their own rows).
+Guide: [docs/DASHBOARDS.md](docs/DASHBOARDS.md).
 
 ## Data security
 

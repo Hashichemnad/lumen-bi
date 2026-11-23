@@ -1,11 +1,12 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 
 import Layout from "./components/Layout";
 import { useAuth } from "./lib/auth";
 import type { Role } from "./lib/types";
 import Account from "./pages/Account";
 import ChartList from "./pages/charts/ChartList";
+import DashboardList from "./pages/dashboards/DashboardList";
 import ConnectionPage from "./pages/data/ConnectionPage";
 import DataHome from "./pages/data/DataHome";
 import DatasetPage from "./pages/data/DatasetPage";
@@ -20,6 +21,13 @@ import ResetPassword from "./pages/ResetPassword";
 
 // The chart builder (and ECharts) loads only when opened
 const ChartBuilder = lazy(() => import("./pages/charts/ChartBuilder"));
+const DashboardPage = lazy(() => import("./pages/dashboards/DashboardPage"));
+
+/** A new page for each dashboard (state does not carry over from one to the next) */
+function DashboardRoute() {
+  const { id } = useParams();
+  return <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}><DashboardPage key={id} /></Suspense>;
+}
 
 function RequireAuth({ children, role }: { children: ReactNode; role?: Role }) {
   const { user, loading, hasRole } = useAuth();
@@ -39,6 +47,8 @@ export default function App() {
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="account" element={<Account />} />
+        <Route path="dashboards" element={<DashboardList />} />
+        <Route path="dashboards/:id" element={<DashboardRoute />} />
         <Route path="charts" element={<RequireAuth role="explorer"><ChartList /></RequireAuth>} />
         <Route path="charts/:id" element={<RequireAuth role="explorer"><Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}><ChartBuilder /></Suspense></RequireAuth>} />
         <Route path="data" element={<RequireAuth role="creator"><DataHome /></RequireAuth>} />

@@ -475,3 +475,43 @@ class ChartOut(ORM):
     created_at: datetime
     updated_at: datetime
     can_edit: bool = False
+
+
+# ---------- dashboards ----------
+class DashboardIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field("", max_length=2000)
+    config: dict[str, Any]
+
+
+class DashboardSummary(BaseModel):
+    id: int
+    name: str
+    description: str
+    owner_id: int | None
+    owner_name: str
+    updated_at: datetime
+    favorite: bool
+    level: str  # view | edit | manage
+    shared: bool
+    tiles: int
+
+
+class ShareEntry(BaseModel):
+    id: int
+    level: Literal["view", "edit"] = "view"
+
+
+class DashboardSharing(BaseModel):
+    everyone: Literal["none", "view", "edit"] = "none"
+    users: list[ShareEntry] = []
+    groups: list[ShareEntry] = []
+
+
+class DashboardQueryIn(BaseModel):
+    item: str
+    filters: list[dict[str, Any]] = []
+    params: dict[str, Any] = {}
+    drill: list[dict[str, Any]] = []
+    rows: bool = False
+    limit: int | None = Field(None, ge=1, le=50_000)

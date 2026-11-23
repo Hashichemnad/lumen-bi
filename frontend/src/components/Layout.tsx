@@ -17,7 +17,7 @@ interface NavItem {
 const MAIN: NavItem[] = [
   { to: "/", label: "Home", icon: <Home size={18} /> },
   { to: "/charts", label: "Charts", icon: <PieChart size={18} />, role: "explorer" },
-  { to: "/dashboards", label: "Dashboards", icon: <LayoutDashboard size={18} />, soon: true },
+  { to: "/dashboards", label: "Dashboards", icon: <LayoutDashboard size={18} /> },
   { to: "/data", label: "Data", icon: <Database size={18} />, role: "creator" },
 ];
 const ADMIN: NavItem[] = [
@@ -60,7 +60,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   // Work areas (the chart builder) use the full width, with an icon-only menu
-  const compact = /^\/charts\/.+/.test(useLocation().pathname);
+  const compact = /^\/(charts|dashboards)\/.+/.test(useLocation().pathname);
   return (
     <div className="flex h-full">
       <aside className={clsx("flex shrink-0 flex-col border-r border-slate-200 bg-white", compact ? "w-14" : "w-60")}>

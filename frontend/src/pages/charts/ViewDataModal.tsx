@@ -8,18 +8,21 @@ import { download, post } from "../../lib/api";
 import type { QueryResult } from "../../lib/types";
 
 /** The rows behind a chart or a mark (row-level security applies on the server). */
-export default function ViewDataModal({ datasetId, spec, title, onClose, canExport }: {
+export default function ViewDataModal({ datasetId, spec, title, onClose, canExport, endpoint, exportEndpoint }: {
   datasetId: number; spec: Record<string, unknown>; title: string; onClose: () => void; canExport: boolean;
+  /** Dashboards query through their own endpoints (the body then has no dataset) */
+  endpoint?: string; exportEndpoint?: string;
 }) {
+  const body = endpoint ? spec : { dataset: datasetId, ...spec };
   const [error, setError] = useState("");
   const rows = useQuery({
-    queryKey: ["view-data", datasetId, JSON.stringify(spec)],
-    queryFn: () => post<QueryResult>("/query", { dataset: datasetId, ...spec }),
+    queryKey: ["view-data", endpoint ?? datasetId, JSON.stringify(spec)],
+    queryFn: () => post<QueryResult>(endpoint ?? "/query", body),
   });
   const exportCsv = async () => {
     setError("");
     try {
-      await download("/query/export", { dataset: datasetId, ...spec, limit: undefined }, "data.csv");
+      await download(exportEndpoint ?? "/query/export", { ...body, limit: undefined }, "data.csv");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed");
     }

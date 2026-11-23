@@ -16,6 +16,7 @@ from app.query import rls
 from app.query.spec import QuerySpec
 from app.schemas import ChartIn, ChartOut
 from app.services import audit
+from app.services.dashboards import dashboards_using_chart
 
 router = APIRouter(prefix="/charts", tags=["charts"])
 require_explorer = require_role(Role.explorer)
@@ -148,6 +149,13 @@ def delete_chart(
     chart_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_explorer)
 ):
     chart = _get(db, chart_id, user)
+    used = dashboards_using_chart(db, chart.id)
+    if used:
+        names = ", ".join(f'"{d.name}"' for d in used[:3])
+        raise HTTPException(
+            409,
+            f"This chart is on the dashboard{'s' if len(used) > 1 else ''} {names}. Remove it there first.",
+        )
     name = chart.name
     db.delete(chart)
     audit.record(

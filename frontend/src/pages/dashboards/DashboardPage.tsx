@@ -1,0 +1,402 @@
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import clsx from "clsx";
+import { ArrowLeft, Copy, Filter, Link2, Monitor, Pencil, Plus, Settings2, Share2, Smartphone, Star, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactGridLayout, { useContainerWidth, type Layout } from "react-grid-layout";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+
+import { Alert, Button, Input } from "../../components/ui";
+import { newId } from "../../lib/chart/types";
+import { del, get, post, put } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
+import { crossFor, decodeState, encodeState, filterSpecs, type CrossFilter, type Drill } from "../../lib/dashboard/filters";
+import type { Box, DashConfig, Dashboard, DashFilter, FilterValue, Tab, Tile } from "../../lib/dashboard/types";
+import ViewDataModal from "../charts/ViewDataModal";
+import { AddTileModal, FilterModal, ShareModal, TileModal } from "./DashboardModals";
+import DashboardTile, { MARGIN, ROW_HEIGHT, tileHeight, type TileActions } from "./DashboardTile";
+import FilterBar from "./FilterBar";
+
+type Spec = Record<string, unknown>;
+const PHONE_COLS = 4;
+const PHONE_WIDTH = 640;
+
+/** The first free spot for a new tile, reading left to right, top to bottom. */
+function freeSpot(items: Tile[], w: number, h: number): { x: number; y: number } {
+  const overlaps = (x: number, y: number) =>
+    items.some((t) => x < t.desktop.x + t.desktop.w && x + w > t.desktop.x && y < t.desktop.y + t.desktop.h && y + h > t.desktop.y);
+  const bottom = Math.max(0, ...items.map((i) => i.desktop.y + i.desktop.h));
+  for (let y = 0; y <= bottom; y++) for (let x = 0; x + w <= 12; x++) if (!overlaps(x, y)) return { x, y };
+  return { x: 0, y: bottom };
+}
+
+/** Phone layout made from the desktop one: tiles stacked in reading order, full width. */
+function stacked(items: Tile[]): Record<string, Box> {
+  let y = 0;
+  const out: Record<string, Box> = {};
+  for (const t of [...items].sort((a, b) => a.desktop.y - b.desktop.y || a.desktop.x - b.desktop.x)) {
+    out[t.id] = { x: 0, y, w: PHONE_COLS, h: t.desktop.h };
+    y += t.desktop.h;
+  }
+  return out;
+}
+
+function Grid({ tab, editing, device, onLayout, render }: {
+  tab: Tab;
+  editing: boolean;
+  device: "desktop" | "phone";
+  onLayout: (boxes: Record<string, Box>, device: "desktop" | "phone") => void;
+  render: (tile: Tile, heightPx: number) => React.ReactNode;
+}) {
+  const { width, containerRef, mounted } = useContainerWidth();
+  const phone = device === "phone";
+  const cols = phone ? PHONE_COLS : 12;
+  const auto = useMemo(() => stacked(tab.items), [tab.items]);
+  const layout: Layout = tab.items.map((t) => {
+    const box = phone ? (t.phone ?? auto[t.id]) : t.desktop;
+    return { i: t.id, ...box, minW: phone ? 2 : 2, minH: 2 };
+  });
+  const change = (l: Layout) => {
+    if (!editing) return;
+    const boxes: Record<string, Box> = {};
+    for (const it of l) boxes[it.i] = { x: it.x, y: it.y, w: it.w, h: it.h };
+    // Only real moves count (the grid also reports the layout when it first appears)
+    const moved = layout.some((it) => {
+      const b = boxes[it.i];
+      return !b || b.x !== it.x || b.y !== it.y || b.w !== it.w || b.h !== it.h;
+    });
+    if (moved) onLayout(boxes, device);
+  };
+  return (
+    <div ref={containerRef} className={clsx(phone && editing && "mx-auto max-w-[400px] rounded-2xl border-8 border-slate-800 bg-slate-50")}>
+      {mounted && (
+        <ReactGridLayout layout={layout} width={width} onLayoutChange={change}
+          gridConfig={{ cols, rowHeight: ROW_HEIGHT, margin: [MARGIN, MARGIN], containerPadding: [0, 0] }}
+          dragConfig={{ enabled: editing, handle: ".tile-handle", cancel: ".no-drag" }}
+          resizeConfig={{ enabled: editing, handles: ["se"] }}>
+          {tab.items.map((t) => {
+            const h = (phone ? (t.phone ?? auto[t.id]) : t.desktop).h;
+            return <div key={t.id}>{render(t, tileHeight(h))}</div>;
+          })}
+        </ReactGridLayout>
+      )}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const id = Number(useParams().id);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { hasRole } = useAuth();
+  const [search, setSearch] = useSearchParams();
+  const detail = useQuery({ queryKey: ["dashboard", id], queryFn: () => get<Dashboard>(`/dashboards/${id}`) });
+  const dash = detail.data;
+
+  // ---------------------------------------------------------------- editing (changes save automatically)
+  const [editing, setEditing] = useState(search.get("edit") === "1");
+  const [config, setConfig] = useState<DashConfig | null>(null);
+  const [name, setName] = useState("");
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const [saveError, setSaveError] = useState("");
+  const pending = useRef<number | null>(null);
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  useEffect(() => {
+    if (dash && !dash.can_edit && editing) setEditing(false);
+  }, [dash, editing]);
+  useEffect(() => {
+    if (dash && !config) {
+      setConfig(dash.config);
+      setName(dash.name);
+    }
+  }, [dash, config]);
+  const save = useCallback(async (next: DashConfig) => {
+    setSaveState("saving");
+    try {
+      const out = await put<Dashboard>(`/dashboards/${id}`, { name: nameRef.current.trim() || "Untitled dashboard", description: dash?.description ?? "", config: next });
+      // Keep the local layout (it may have moved on); take the server's charts and datasets
+      qc.setQueryData<Dashboard>(["dashboard", id], (old) => (old ? { ...out, config: out.config } : out));
+      setSaveState("saved");
+      setSaveError("");
+    } catch (err) {
+      setSaveState("error");
+      setSaveError(err instanceof Error ? err.message : "Could not save");
+    }
+  }, [id, dash?.description, qc]);
+  const update = useCallback((change: (c: DashConfig) => DashConfig, delay = 600) => {
+    setConfig((c) => {
+      if (!c) return c;
+      const next = change(c);
+      if (pending.current) window.clearTimeout(pending.current);
+      pending.current = window.setTimeout(() => {
+        pending.current = null;
+        save(next);
+      }, delay);
+      return next;
+    });
+  }, [save]);
+
+  // ---------------------------------------------------------------- what people choose while viewing
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- read once, when the page opens
+  const initial = useMemo(() => decodeState(search.get("s")), []);
+  const [values, setValues] = useState<Record<string, FilterValue>>(initial?.f ?? {});
+  const [params, setParams] = useState<Record<string, unknown>>(initial?.p ?? {});
+  const [tabId, setTabId] = useState<string | undefined>(initial?.t);
+  const [cross, setCross] = useState<CrossFilter | null>(null);
+  const [drills, setDrills] = useState<Record<string, Drill>>({});
+  const [viewData, setViewData] = useState<{ tile: string; title: string; filters: Spec[] } | null>(null);
+  const [modal, setModal] = useState<null | { kind: "add" } | { kind: "tile"; tile: Tile } | { kind: "filter"; filter?: DashFilter } | { kind: "share" }>(null);
+  const [device, setDevice] = useState<"desktop" | "phone">("desktop");
+  const [copied, setCopied] = useState(false);
+  const [narrow, setNarrow] = useState(window.innerWidth < PHONE_WIDTH);
+  useEffect(() => {
+    const onResize = () => setNarrow(window.innerWidth < PHONE_WIDTH);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const cfg = config ?? dash?.config;
+  const filterValue = useCallback((f: DashFilter) => (f.id in values ? values[f.id] : f.value ?? null), [values]);
+  const tab = cfg?.tabs.find((t) => t.id === tabId) ?? cfg?.tabs[0];
+
+  // Links keep the filters: the current choices live in the address
+  useEffect(() => {
+    if (!cfg) return;
+    const f = Object.fromEntries(Object.entries(values).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(cfg.filters.find((x) => x.id === k)?.value ?? null)));
+    const next = new URLSearchParams(search);
+    if (Object.keys(f).length || Object.keys(params).length || (tabId && tabId !== cfg.tabs[0]?.id)) next.set("s", encodeState({ f, p: params, t: tabId }));
+    else next.delete("s");
+    if (editing) next.set("edit", "1");
+    else next.delete("edit");
+    if (next.toString() !== search.toString()) setSearch(next, { replace: true });
+  }, [values, params, tabId, editing, cfg]); // eslint-disable-line react-hooks/exhaustive-deps -- search is written here
+
+  if (detail.error) return <div className="p-6"><Alert>{(detail.error as Error).message}</Alert></div>;
+  if (!dash || !cfg || !tab) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
+
+  const datasetOf = (t: Tile) => {
+    const chart = t.chart_id ? dash.charts[String(t.chart_id)] : undefined;
+    return chart ? dash.datasets[String(chart.dataset_id)] : undefined;
+  };
+  const filtersFor = (t: Tile): Spec[] => {
+    const ds = datasetOf(t);
+    if (!ds) return [];
+    return [...cfg.filters.flatMap((f) => filterSpecs(f, filterValue(f), ds.id)), ...crossFor(cross, t.id, ds)];
+  };
+  const paramsFor = (t: Tile): Record<string, unknown> => {
+    const ds = datasetOf(t);
+    if (!ds) return {};
+    return Object.fromEntries(Object.entries(params).filter(([k]) => k.startsWith(`${ds.id}:`)).map(([k, v]) => [k.slice(String(ds.id).length + 1), v]));
+  };
+
+  const actions: TileActions = {
+    onCross: (tileId, label, filters) => setCross({ source: tileId, label, filters }),
+    onDrill: (tileId, d) => setDrills((all) => {
+      const next = { ...all };
+      if (d) next[tileId] = d;
+      else delete next[tileId];
+      return next;
+    }),
+    onViewData: (tileId, title, filters) => setViewData({ tile: tileId, title, filters }),
+    onEdit: (tile) => setModal({ kind: "tile", tile }),
+    onRemove: (tile) => update((c) => ({ ...c, tabs: c.tabs.map((t) => ({ ...t, items: t.items.filter((i) => i.id !== tile.id) })) }), 0),
+  };
+  const onLayout = (boxes: Record<string, Box>, dev: "desktop" | "phone") => {
+    update((c) => ({
+      ...c,
+      tabs: c.tabs.map((t) => (t.id !== tab.id ? t : { ...t, items: t.items.map((i) => (boxes[i.id] ? (dev === "desktop" ? { ...i, desktop: boxes[i.id] } : { ...i, phone: boxes[i.id] }) : i)) })),
+      options: dev === "phone" ? { ...c.options, phone_layout: true } : c.options,
+    }));
+  };
+  const addTile = (t: Omit<Tile, "desktop" | "id">, size: { w: number; h: number }) => {
+    const spot = freeSpot(tab.items, size.w, size.h);
+    update((c) => ({ ...c, tabs: c.tabs.map((x) => (x.id !== tab.id ? x : { ...x, items: [...x.items, { ...t, id: newId("tile"), desktop: { ...spot, ...size }, phone: null } as Tile] })) }), 0);
+  };
+  const saveFilter = (f: DashFilter) => {
+    update((c) => ({ ...c, filters: c.filters.some((x) => x.id === f.id) ? c.filters.map((x) => (x.id === f.id ? f : x)) : [...c.filters, f] }), 0);
+    setValues((v) => ({ ...v, [f.id]: f.value }));
+  };
+  const toggleFavorite = async () => {
+    if (dash.favorite) await del(`/dashboards/${id}/favorite`);
+    else await put(`/dashboards/${id}/favorite`, {});
+    await qc.invalidateQueries({ queryKey: ["dashboard", id] });
+    await qc.invalidateQueries({ queryKey: ["dashboards"] });
+  };
+  const copyLink = async () => {
+    await navigator.clipboard?.writeText(window.location.href.replace(/[?&]edit=1/, "")).catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const copyDashboard = async () => {
+    const made = await post<Dashboard>(`/dashboards/${id}/copy`);
+    await qc.invalidateQueries({ queryKey: ["dashboards"] });
+    navigate(`/dashboards/${made.id}?edit=1`);
+  };
+  const remove = async () => {
+    if (!confirm(`Delete the dashboard "${dash.name}"? Its charts are kept.`)) return;
+    await del(`/dashboards/${id}`);
+    await qc.invalidateQueries({ queryKey: ["dashboards"] });
+    navigate("/dashboards");
+  };
+  const addTab = () => {
+    const t = { id: newId("tab"), name: `Tab ${cfg.tabs.length + 1}`, items: [] };
+    update((c) => ({ ...c, tabs: [...c.tabs, t] }), 0);
+    setTabId(t.id);
+  };
+  const renameTab = (t: Tab) => {
+    const n = prompt("Tab name", t.name);
+    if (n && n.trim()) update((c) => ({ ...c, tabs: c.tabs.map((x) => (x.id === t.id ? { ...x, name: n.trim() } : x)) }), 0);
+  };
+  const removeTab = (t: Tab) => {
+    if (cfg.tabs.length < 2 || !confirm(`Delete the tab "${t.name}" and its tiles?`)) return;
+    update((c) => ({ ...c, tabs: c.tabs.filter((x) => x.id !== t.id) }), 0);
+    setTabId(undefined);
+  };
+  const showDevice = editing ? device : narrow ? "phone" : "desktop";
+
+  return (
+    <div className="h-full overflow-y-auto bg-slate-50">
+      <div className="mx-auto max-w-[1600px] p-4 lg:p-6">
+        {/* header */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Link to="/dashboards" className="rounded p-1 text-slate-500 hover:bg-slate-200" aria-label="All dashboards"><ArrowLeft size={18} /></Link>
+          {editing ? (
+            <Input value={name} onChange={(e) => { setName(e.target.value); update((c) => c, 800); }} className="max-w-sm py-1.5 text-lg font-semibold" aria-label="Dashboard name" />
+          ) : (
+            <h1 className="text-xl font-semibold text-slate-900">{dash.name}</h1>
+          )}
+          {!editing && (
+            <button onClick={toggleFavorite} className="rounded p-1 text-slate-400 hover:text-amber-500" aria-label={dash.favorite ? "Remove from favourites" : "Add to favourites"}>
+              <Star size={18} className={dash.favorite ? "fill-amber-400 text-amber-500" : ""} />
+            </button>
+          )}
+          {editing && (
+            <span className={clsx("text-xs", saveState === "error" ? "text-red-600" : "text-slate-400")}>
+              {saveState === "saving" ? "Saving…" : saveState === "error" ? saveError : "All changes saved"}
+            </span>
+          )}
+          <div className="ms-auto flex flex-wrap items-center gap-1.5">
+            {editing ? (
+              <>
+                <div className="flex rounded-lg border border-slate-300 bg-white p-0.5">
+                  <button onClick={() => setDevice("desktop")} className={clsx("rounded-md px-2 py-1", device === "desktop" ? "bg-slate-100" : "text-slate-500")} title="Desktop layout" aria-label="Desktop layout"><Monitor size={15} /></button>
+                  <button onClick={() => setDevice("phone")} className={clsx("rounded-md px-2 py-1", device === "phone" ? "bg-slate-100" : "text-slate-500")} title="Phone layout" aria-label="Phone layout"><Smartphone size={15} /></button>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "filter" })}><Filter size={14} /> Add filter</Button>
+                <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "add" })}><Plus size={14} /> Add tile</Button>
+                <OptionsMenu config={cfg} onChange={(o) => update((c) => ({ ...c, options: { ...c.options, ...o } }), 0)} />
+                <Button size="sm" onClick={() => { if (pending.current) { window.clearTimeout(pending.current); pending.current = null; save(cfg); } setEditing(false); }}>Done</Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="secondary" onClick={copyLink}><Link2 size={14} /> {copied ? "Copied" : "Copy link"}</Button>
+                {dash.can_manage && <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "share" })}><Share2 size={14} /> Share</Button>}
+                {hasRole("explorer") && <Button size="sm" variant="secondary" onClick={copyDashboard}><Copy size={14} /> Copy</Button>}
+                {dash.can_manage && <Button size="sm" variant="secondary" onClick={remove} aria-label="Delete dashboard"><Trash2 size={14} /></Button>}
+                {dash.can_edit && <Button size="sm" onClick={() => setEditing(true)}><Pencil size={14} /> Edit</Button>}
+              </>
+            )}
+          </div>
+        </div>
+        {dash.description && !editing && <p className="-mt-1 mb-3 text-sm text-slate-600">{dash.description}</p>}
+
+        {/* tabs */}
+        {(cfg.tabs.length > 1 || editing) && (
+          <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-slate-200">
+            {cfg.tabs.map((t) => (
+              <div key={t.id} className={clsx("-mb-px flex items-center border-b-2", t.id === tab.id ? "border-brand-600" : "border-transparent")}>
+                <button onClick={() => setTabId(t.id)} onDoubleClick={() => editing && renameTab(t)}
+                  className={clsx("px-3 py-2 text-sm font-medium", t.id === tab.id ? "text-brand-700" : "text-slate-500 hover:text-slate-700")}>{t.name}</button>
+                {editing && t.id === tab.id && (
+                  <>
+                    <button onClick={() => renameTab(t)} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label="Rename tab"><Pencil size={12} /></button>
+                    {cfg.tabs.length > 1 && <button onClick={() => removeTab(t)} className="rounded p-0.5 text-slate-400 hover:text-red-600" aria-label="Delete tab"><X size={12} /></button>}
+                  </>
+                )}
+              </div>
+            ))}
+            {editing && <button onClick={addTab} className="ms-1 inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"><Plus size={14} /> Tab</button>}
+          </div>
+        )}
+
+        <FilterBar dash={dash} filters={cfg.filters} values={Object.fromEntries(cfg.filters.map((f) => [f.id, filterValue(f)]))}
+          onChange={(fid, v) => setValues((all) => ({ ...all, [fid]: v }))}
+          params={params} onParam={(k, v) => setParams((p) => ({ ...p, [k]: v }))}
+          cross={cross} onClearCross={() => setCross(null)}
+          onReset={() => { setValues({}); setParams({}); setCross(null); setDrills({}); }}
+          editing={editing} onEditFilter={(f) => setModal({ kind: "filter", filter: f })}
+          onRemoveFilter={(f) => update((c) => ({ ...c, filters: c.filters.filter((x) => x.id !== f.id) }), 0)} />
+
+        {!tab.items.length ? (
+          <div className="rounded-xl border-2 border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">
+            {editing ? (
+              <>
+                <p className="font-medium text-slate-700">This tab is empty</p>
+                <p className="mt-1">Add charts, text, images or web pages.</p>
+                <Button className="mt-4" onClick={() => setModal({ kind: "add" })}><Plus size={16} /> Add tile</Button>
+              </>
+            ) : dash.can_edit ? (
+              <p>Nothing here yet. <button className="text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button> to add charts.</p>
+            ) : <p>Nothing here yet.</p>}
+          </div>
+        ) : (
+          <Grid key={`${tab.id}-${showDevice}`} tab={tab} editing={editing} device={showDevice} onLayout={onLayout}
+            render={(t, heightPx) => (
+              <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
+                drill={drills[t.id]} isCrossSource={cross?.source === t.id} actions={actions} editing={editing} heightPx={heightPx}
+                canExport={hasRole("explorer")} />
+            )} />
+        )}
+        {editing && device === "phone" && <p className="mt-3 text-center text-xs text-slate-500">Arrange tiles for phones. Until you change it, phones show the tiles stacked in reading order.</p>}
+      </div>
+
+      {modal?.kind === "add" && <AddTileModal onAdd={addTile} onClose={() => setModal(null)} />}
+      {modal?.kind === "tile" && (
+        <TileModal tile={modal.tile} onClose={() => setModal(null)}
+          onSave={(nt) => update((c) => ({ ...c, tabs: c.tabs.map((t) => ({ ...t, items: t.items.map((i) => (i.id === nt.id ? nt : i)) })) }), 0)} />
+      )}
+      {modal?.kind === "filter" && <FilterModal dash={{ ...dash, config: cfg }} existing={modal.filter} onSave={saveFilter} onClose={() => setModal(null)} />}
+      {modal?.kind === "share" && <ShareModal dash={dash} onClose={() => setModal(null)} />}
+      {viewData && (
+        <DashboardViewData dashId={id} tile={viewData.tile} title={viewData.title} filters={viewData.filters}
+          params={paramsFor(tab.items.find((t) => t.id === viewData.tile) ?? tab.items[0])} onClose={() => setViewData(null)} canExport={hasRole("explorer")} />
+      )}
+    </div>
+  );
+}
+
+function OptionsMenu({ config, onChange }: { config: DashConfig; onChange: (o: Partial<DashConfig["options"]>) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <Button size="sm" variant="secondary" onClick={() => setOpen(!open)} aria-expanded={open}><Settings2 size={14} /> Options</Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute end-0 z-40 mt-1 w-72 space-y-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-lg">
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.cross_filter} onChange={(e) => onChange({ cross_filter: e.target.checked })} />
+              <span>Clicking a chart can filter the others</span></label>
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.view_data} onChange={(e) => onChange({ view_data: e.target.checked })} />
+              <span>People can view the rows behind charts (their own rows only)</span></label>
+            <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.phone_layout} onChange={(e) => onChange({ phone_layout: e.target.checked })} />
+              <span>Use my own phone layout (otherwise tiles stack)</span></label>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** View data for a dashboard tile: the rows behind it, through the dashboard. */
+function DashboardViewData({ dashId, tile, title, filters, params, onClose, canExport }: {
+  dashId: number; tile: string; title: string; filters: Spec[]; params: Record<string, unknown>; onClose: () => void; canExport: boolean;
+}) {
+  return (
+    <ViewDataModal datasetId={0} title={title} onClose={onClose} canExport={canExport}
+      spec={{ item: tile, filters, params, rows: true, limit: 500 }}
+      endpoint={`/dashboards/${dashId}/query`} exportEndpoint={`/dashboards/${dashId}/export`} />
+  );
+}

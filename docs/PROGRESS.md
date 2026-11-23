@@ -12,8 +12,8 @@
 | 6 | Semantic layer | Done |
 | 7 | Query engine + row-level security | Done |
 | 8 | Chart builder UI | Done |
-| 9 | Dashboards UI | Next |
-| 10 | Exports, subscriptions, alerts, embedding | — |
+| 9 | Dashboards UI | Done |
+| 10 | Exports, subscriptions, alerts, embedding | Next |
 | 11 | AI features | — |
 | 12 | Admin and hardening | — |
 
@@ -219,15 +219,43 @@ Known limits (by design for now):
   with shading, heat map, number tiles with sparklines, scatter with trend line, donut, treemap, sorted
   horizontal bars with an average line; saves, reloads and lists the chart; no page errors.
 
-## Next: milestone 9 (dashboards)
+## What exists (milestone 9)
 
-- Dashboards table and API (owner, workspace-free sharing: private / people / groups / everyone, view or
-  edit; viewing a shared dashboard lets people query its charts' datasets, with row-level security).
-- Drag/resize grid of saved charts plus text, image and web blocks; tabs; desktop/tablet/phone layouts.
-- Global filters (one row above the charts: dropdown, multi-select, search, date range presets, numeric
-  range) applying to every chart on the same dataset or mapped fields; parameter controls.
-- Cross-filtering (click a mark to filter the others), drill-down, view underlying rows.
-- Links that keep filters; favourites; comments (maybe 10).
+- Backend: `dashboards` (config: tabs of tiles with desktop and optional phone positions on a 12/4-column
+  grid; filters with targets per dataset; options), `dashboard_shares` (everyone/user/group, view/edit),
+  `dashboard_favorites`. Migration `0007`. `app/services/dashboards.py`: access levels (manage/edit/view;
+  viewers never edit), strict config validation (ids, grid bounds, https-only images and web pages, tile
+  and filter limits, newly added charts must be the editor's own), and `chart_spec`, which runs a tile's
+  saved chart query with only narrowing additions: filters, parameters, drill along a date or a hierarchy
+  of the same dataset, rows ("view data", can be switched off).
+- API `app/api/v1/dashboards.py`: list (visible to the user, with level/favourite), create (Explorer+),
+  get (with the charts' configs and the datasets' fields, hierarchies and parameters), update (edit
+  level), copy, delete (manage), favourite on/off, sharing get/set (manage, audited), `POST /query`
+  (one tile, viewer's RLS), `POST /export` (CSV, Explorer+, audited), `GET /values` (filter values from a
+  dataset used on the dashboard, RLS). Charts on dashboards cannot be deleted. `/directory` opened to
+  Explorers (sharing). Deleted users/groups are removed from dashboard shares.
+- Frontend: dashboards list (all / favourites / mine / shared, search), home page shows favourites and
+  latest; dashboard page with react-grid-layout (drag/resize in edit mode, auto-save with status), tiles
+  (charts via the dashboard endpoint, text with a safe Markdown subset, images, sandboxed web pages),
+  tabs, filter bar (multi-select with search, single value, text search, date presets and custom range,
+  numeric range, parameters, reset), cross-filtering by clicking a mark (applies to other datasets with the
+  same field names), drill down/up per tile, view data and CSV/PNG per tile, links that keep filters,
+  parameters and tab (`?s=`), phone layout (custom or stacked), sharing dialog, favourites, copy.
+- Docs: `docs/DASHBOARDS.md`.
+- Tests: 313 backend tests (19 dashboard tests: sharing levels, viewers query through the dashboard with
+  their own RLS and without dataset access, filters narrow only, drill limits, view-data switch, values
+  and export permissions, layout validation incl. unsafe URLs, editors adding only their own charts,
+  groups cleanup, favourites/copy/delete). Browser test: builds a dashboard with 5 charts from 2 datasets
+  and a note, 3 filters (incl. one linked across datasets), uses filters, cross-filters, drills, views
+  data, reopens a copied link with the filter kept, shares; a UAE-only viewer sees UAE rows; phone view.
+
+## Next: milestone 10 (exports, subscriptions, alerts, embedding)
+
+- Dashboard export to PDF and PNG (server-side rendering with headless Chromium in a worker), Excel export.
+- Email subscriptions: per recipient (their own RLS), schedule, format (PDF/PNG/link), filters kept.
+- Data-driven alerts on a chart measure (threshold, change), checked after syncs or on a schedule.
+- Signed embedding: embed a dashboard in another site with a signed token (user attributes for RLS),
+  allowed origins; comments on dashboards.
 
 ## Open questions for the owner
 
