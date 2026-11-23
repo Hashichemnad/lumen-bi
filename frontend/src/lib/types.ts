@@ -111,6 +111,7 @@ export interface DataObject {
   name: string;
   kind: string;
   schema: string | null;
+  label: string | null;
 }
 
 export interface Column {

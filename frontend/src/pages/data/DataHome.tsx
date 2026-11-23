@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Database, FileSpreadsheet, Server } from "lucide-react";
+import { Cloud, Database, FileSpreadsheet, Globe, Server } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { Button, Card, PageHeader, Table, formatDate } from "../../components/ui
 import { get } from "../../lib/api";
 import type { Connection, Dataset } from "../../lib/types";
 import { CONNECTION_ICONS, CONNECTION_LABELS, StatusBadge, describeSchedule, formatNumber, sourceLabel } from "./common";
+import { RestConnectionModal, SalesforceConnectionModal } from "./ApiConnectionForms";
 import { DatabaseConnectionModal, UploadModal } from "./ConnectionForms";
 
 export default function DataHome() {
@@ -17,7 +18,7 @@ export default function DataHome() {
     refetchInterval: (q) => (q.state.data?.some((d) => d.active_run) ? 2000 : false),
   });
   const connections = useQuery({ queryKey: ["connections"], queryFn: () => get<Connection[]>("/connections") });
-  const [adding, setAdding] = useState<"file" | "oracle" | "postgres" | null>(null);
+  const [adding, setAdding] = useState<"file" | "oracle" | "postgres" | "salesforce" | "rest" | null>(null);
   const goTo = (c: Connection) => navigate(`/data/connections/${c.id}`);
 
   return (
@@ -30,7 +31,8 @@ export default function DataHome() {
           <Button variant="secondary" onClick={() => setAdding("file")}><FileSpreadsheet size={16} /> Upload a file</Button>
           <Button variant="secondary" onClick={() => setAdding("oracle")}><Server size={16} /> Oracle</Button>
           <Button variant="secondary" onClick={() => setAdding("postgres")}><Database size={16} /> PostgreSQL</Button>
-          <Button variant="secondary" disabled title="Coming in the next milestone">Salesforce · REST API (soon)</Button>
+          <Button variant="secondary" onClick={() => setAdding("salesforce")}><Cloud size={16} /> Salesforce</Button>
+          <Button variant="secondary" onClick={() => setAdding("rest")}><Globe size={16} /> REST API</Button>
         </div>
       </Card>
 
@@ -75,6 +77,8 @@ export default function DataHome() {
       {connections.data?.length === 0 && <p className="text-sm text-slate-500">No connections yet.</p>}
 
       {adding === "file" && <UploadModal onClose={() => setAdding(null)} onDone={goTo} />}
+      {adding === "salesforce" && <SalesforceConnectionModal onClose={() => setAdding(null)} onSaved={goTo} />}
+      {adding === "rest" && <RestConnectionModal onClose={() => setAdding(null)} onSaved={goTo} />}
       {(adding === "oracle" || adding === "postgres") && (
         <DatabaseConnectionModal type={adding} onClose={() => setAdding(null)} onSaved={goTo} />
       )}

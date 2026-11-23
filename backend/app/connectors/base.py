@@ -15,8 +15,9 @@ class ConnectorError(Exception):
 @dataclass
 class ObjectInfo:
     name: str  # what goes into a dataset's source {"object": name}
-    kind: str  # table | view | sheet | file
+    kind: str  # table | view | sheet | file | object | endpoint
     schema: str | None = None
+    label: str | None = None  # friendly name, e.g. Salesforce "Opportunity Product"
 
     def dict(self) -> dict:
         return asdict(self)
@@ -63,6 +64,11 @@ def unique_column_names(names: list[Any]) -> list[str]:
     return out
 
 
+# A connector may add this boolean column to mark rows deleted at the source (e.g. Salesforce IsDeleted).
+# The snapshot writer removes those rows (and their older versions) and drops the column.
+DELETED_COLUMN = "_lumen_deleted"
+
+
 class Connector(ABC):
     type: ClassVar[str]
     label: ClassVar[str]
@@ -73,6 +79,11 @@ class Connector(ABC):
     def __init__(self, config: dict[str, Any], secrets: dict[str, str]):
         self.config = config or {}
         self.secrets = secrets or {}
+
+    @classmethod
+    def incremental_ready(cls, config: dict[str, Any]) -> str | None:
+        """None if incremental sync can be used with this configuration, else the reason it cannot."""
+        return None if cls.supports_incremental else "This connection only supports full syncs"
 
     @classmethod
     def validate_config(cls, config: dict[str, Any]) -> dict[str, Any]:

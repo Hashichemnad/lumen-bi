@@ -2,10 +2,11 @@ from app.connectors.base import ColumnInfo, Connector, ConnectorError, ObjectInf
 from app.connectors.files import FileConnector
 from app.connectors.oracle import OracleConnector
 from app.connectors.postgres import PostgresConnector
+from app.connectors.rest import RestConnector
+from app.connectors.salesforce import SalesforceConnector
 
-# Salesforce and REST connectors are added in milestone 5
 REGISTRY: dict[str, type[Connector]] = {
-    c.type: c for c in (FileConnector, OracleConnector, PostgresConnector)
+    c.type: c for c in (FileConnector, OracleConnector, PostgresConnector, SalesforceConnector, RestConnector)
 }
 
 

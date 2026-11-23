@@ -8,6 +8,7 @@ import { del, get, post } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import type { Connection, DataObject, Dataset } from "../../lib/types";
 import { CONNECTION_LABELS, StatusBadge, formatBytes, formatNumber, sourceLabel } from "./common";
+import { RestConnectionModal, SalesforceConnectionModal } from "./ApiConnectionForms";
 import { DatabaseConnectionModal, UploadModal } from "./ConnectionForms";
 import DatasetForm from "./DatasetForm";
 
@@ -66,6 +67,16 @@ export default function ConnectionPage() {
             <div className="flex justify-between"><dt className="text-slate-500">File</dt><dd>{String(cfg.filename)}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Size</dt><dd>{formatBytes(Number(cfg.size ?? 0))}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">Uploaded</dt><dd>{formatDate(String(cfg.uploaded_at ?? ""))}</dd></div>
+          </> : c.type === "salesforce" ? <>
+            <div className="flex justify-between"><dt className="text-slate-500">Org</dt><dd>{String(cfg.domain_url)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Sign-in</dt><dd>{cfg.auth === "jwt" ? `JWT bearer as ${String(cfg.username)}` : "Client credentials"}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">API version</dt><dd>{String(cfg.api_version || "newest")}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Bulk API from</dt><dd>{Number(cfg.bulk_threshold).toLocaleString()} rows</dd></div>
+          </> : c.type === "rest" ? <>
+            <div className="flex justify-between"><dt className="text-slate-500">Base URL</dt><dd>{String(cfg.base_url)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Sign-in</dt><dd>{String(cfg.auth)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Pages</dt><dd>{String(cfg.pagination)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">Incremental</dt><dd>{cfg.since_param ? `by ${String(cfg.since_param)}` : "not set up"}</dd></div>
           </> : <>
             <div className="flex justify-between"><dt className="text-slate-500">Host</dt><dd>{String(cfg.host)}:{String(cfg.port)}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">{c.type === "oracle" ? (cfg.sid ? "SID" : "Service") : "Database"}</dt>
@@ -93,8 +104,10 @@ export default function ConnectionPage() {
       </Card>
 
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{c.type === "file" ? "Sheets" : "Tables and views"}</h2>
-        {c.type !== "file" && <Button variant="secondary" size="sm" onClick={() => setNewDataset("")}><Plus size={14} /> Dataset from SQL query</Button>}
+        <h2 className="text-lg font-semibold">{{ file: "Sheets", salesforce: "Objects", rest: "Endpoints" }[c.type] ?? "Tables and views"}</h2>
+        {["oracle", "postgres", "salesforce"].includes(c.type) && (
+          <Button variant="secondary" size="sm" onClick={() => setNewDataset("")}><Plus size={14} /> Dataset from {c.type === "salesforce" ? "SOQL" : "SQL"} query</Button>
+        )}
       </div>
       <Card>
         {objects.error && <div className="p-4"><Alert>{(objects.error as Error).message}</Alert></div>}
@@ -102,7 +115,9 @@ export default function ConnectionPage() {
         <ul className="divide-y divide-slate-100">
           {objects.data?.map((o) => (
             <li key={o.name} className="flex items-center justify-between px-4 py-2.5 text-sm">
-              <span><span className="font-medium">{o.name}</span> <span className="text-slate-500">{o.kind}</span></span>
+              <span><span className="font-medium">{o.label && o.label !== o.name ? `${o.label} ` : ""}</span>
+                <span className={o.label && o.label !== o.name ? "font-mono text-xs text-slate-500" : "font-medium"}>{o.name}</span>{" "}
+                <span className="text-slate-500">{o.kind}</span></span>
               {used.has(o.name)
                 ? <span className="text-xs text-slate-500">already a dataset</span>
                 : <Button variant="ghost" size="sm" onClick={() => setNewDataset(o.name)}><Plus size={14} /> Create dataset</Button>}
@@ -112,6 +127,8 @@ export default function ConnectionPage() {
       </Card>
 
       {editing && c.type === "file" && <UploadModal replace={c} onClose={() => setEditing(false)} />}
+      {editing && c.type === "salesforce" && <SalesforceConnectionModal existing={c} onClose={() => setEditing(false)} />}
+      {editing && c.type === "rest" && <RestConnectionModal existing={c} onClose={() => setEditing(false)} />}
       {editing && (c.type === "oracle" || c.type === "postgres") && (
         <DatabaseConnectionModal type={c.type} existing={c} onClose={() => setEditing(false)} />
       )}

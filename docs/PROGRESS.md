@@ -8,8 +8,8 @@
 | 2 | Auth, users, roles, groups, audit | Done (TOTP two-factor deferred to milestone 12) |
 | 3 | SSO: Microsoft Entra ID, UAE PASS | Done (real Microsoft/UAE PASS sign-in still to be tried by the owner) |
 | 4 | Connector framework + files + Oracle (+ PostgreSQL) | Done (Oracle still to be tried against a real database) |
-| 5 | Salesforce and REST connectors | Next |
-| 6 | Semantic layer | — |
+| 5 | Salesforce and REST connectors | Done (to be tried against a real Salesforce org) |
+| 6 | Semantic layer | Next |
 | 7 | Query engine + row-level security | — |
 | 8 | Chart builder UI | — |
 | 9 | Dashboards UI | — |
@@ -93,15 +93,41 @@ Known limits (by design for now):
 - Data preview is limited to Creators/Admins until row-level security exists (M7).
 - Fixed: `.gitignore` had `data/`, which also ignored `frontend/src/pages/data/`; now anchored to `/data/`.
 
-## Next: milestone 5 (Salesforce and REST connectors)
+## What exists (milestone 5)
 
-- Salesforce: OAuth connected app (or username + password + token for a first test), list objects and fields,
-  SOQL; REST for small objects, Bulk API 2.0 for large; incremental by `SystemModstamp`; deleted records
-  via `queryAll`/`IsDeleted`; API-limit handling.
-- REST/JSON: endpoint, method, headers, query params; auth API key / Bearer / Basic / OAuth2 client
-  credentials; pagination page/offset, cursor, next-link; JSONPath to records; flatten nested JSON;
-  incremental by date parameter or cursor; retries with back-off and rate limits.
-- Same Data UI, with a form per connector.
+- `app/connectors/http.py`: shared HTTP for API connectors: retries on 429/502/503/504 with `Retry-After`
+  and back-off, safe manual redirects, and a guard that blocks localhost, link-local and metadata addresses
+  (company-internal ranges allowed). `ALLOW_LOCAL_API_URLS=true` only for local trials.
+- `app/connectors/salesforce.py`: client credentials and JWT bearer sign-in (username-password not offered:
+  blocked/retired by Salesforce); newest API version auto-detected; queryable objects with labels; describe
+  (compound/binary fields skipped) with typed columns; REST query with `nextRecordsUrl` paging; Bulk API 2.0
+  (job, polling, CSV results with `Sforce-Locator`) when a COUNT() reaches `bulk_threshold`; incremental by
+  `SystemModstamp` using queryAll so deleted records are removed; custom SOQL with relationship fields
+  flattened (`Account.Name`); re-sign-in on expired sessions; readable API-limit and query errors.
+- `app/connectors/rest.py`: base URL + endpoints per connection; API key (header/query), bearer, basic,
+  OAuth 2.0 client credentials (token refresh on 401); pagination page / offset / cursor / next link / Link
+  header with a max-pages guard; records path; nested JSON flattened, lists kept as JSON, ISO date-time
+  strings typed; incremental through a "changed since" parameter (ISO, date, epoch, epoch ms).
+- Snapshot writer: rows flagged with `_lumen_deleted` by a connector are dropped and remove their older
+  versions (generic, used by Salesforce).
+- Previews show times in `TIMEZONE`.
+- `tools/fake_sources.py`: fake Salesforce (OAuth, describe, SOQL subset, query/queryAll paging, Bulk API 2.0)
+  and fake REST API (5 pagination styles, 4 auth types, rate limiting). Same code serves tests
+  (MockTransport) and local trials (real HTTP servers on :9100/:9200).
+- Frontend: Salesforce and REST connection forms; object labels; SOQL wording; Salesforce defaults
+  (SystemModstamp + Id); incremental disabled with a reason when a REST connection has no since parameter.
+- Docs: `docs/CONNECTORS.md` (Salesforce connected-app steps for both sign-in methods, REST settings).
+- Tests: 124 backend tests (32 new). Browser test against the fakes running as real servers.
+
+## Next: milestone 6 (semantic layer)
+
+- `dataset_fields`: label, description, role (dimension/measure), format (number, currency AED, percent,
+  date), hidden, default aggregation; auto-filled from columns at each sync, user edits kept.
+- Calculated fields: formula language (arithmetic, IF/CASE, date and string functions) parsed to an AST and
+  compiled to DuckDB SQL (never string-concatenated), validated against fields; preview a formula.
+- Joins/relationships between datasets (inner, left, full) and unions; hierarchies (date year→quarter→
+  month→week→day, custom); groups and bins; parameters.
+- Data UI: a "Model" tab per dataset (fields table, formula editor, hierarchies) and a relationships editor.
 
 ## Open questions for the owner
 

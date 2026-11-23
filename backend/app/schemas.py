@@ -222,6 +222,7 @@ class ObjectOut(BaseModel):
     name: str
     kind: str
     schema_: str | None = Field(default=None, alias="schema")
+    label: str | None = None
 
 
 class ColumnOut(BaseModel):
