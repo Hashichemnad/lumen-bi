@@ -7,17 +7,35 @@ from app.core.config import get_settings
 log = logging.getLogger("lumen.email")
 
 
-def send_email(to: str, subject: str, text: str) -> None:
-    """Send a plain-text email. Without SMTP configured, the email is written to the log."""
+# Without SMTP, sent emails are kept here too (tests and development read them)
+OUTBOX: list[EmailMessage] = []
+
+
+def send_email(
+    to: str,
+    subject: str,
+    text: str,
+    html: str | None = None,
+    attachments: list[tuple[str, bytes, str]] | None = None,
+) -> None:
+    """Send an email (plain text, optional HTML and attachments as (filename, bytes, mime type)).
+    Without SMTP configured, the email is written to the log."""
     s = get_settings()
-    if not s.smtp_host:
-        log.warning("SMTP not configured; email to %s\nSubject: %s\n\n%s", to, subject, text)
-        return
     msg = EmailMessage()
     msg["From"] = s.smtp_from
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(text)
+    if html:
+        msg.add_alternative(html, subtype="html")
+    for name, data, mime in attachments or []:
+        main, _, sub = mime.partition("/")
+        msg.add_attachment(data, maintype=main, subtype=sub or "octet-stream", filename=name)
+    if not s.smtp_host:
+        log.warning("SMTP not configured; email to %s\nSubject: %s\n\n%s", to, subject, text)
+        OUTBOX.append(msg)
+        del OUTBOX[:-50]
+        return
     with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=20) as smtp:
         if s.smtp_tls:
             smtp.starttls()

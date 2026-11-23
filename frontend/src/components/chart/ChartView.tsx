@@ -23,6 +23,8 @@ interface Props {
   stale?: boolean;
   onMark?: (e: MarkEvent) => void;
   onSort?: (pillId: string) => void;
+  /** Notes pinned to points of the chart (dashboards) */
+  annotations?: Annotation[];
 }
 
 const MAX_TABLE_ROWS = 2000;
@@ -255,8 +257,42 @@ function RatingView({ cfg, result }: Pick<Props, "cfg" | "result">) {
   );
 }
 
+// ------------------------------------------------------------------ annotations
+export interface Annotation {
+  label: string;
+  text: string;
+}
+
+type Obj = Record<string, unknown>;
+
+/** Draw notes pinned to category values (e.g. a month) as dashed lines with a short label. */
+function withAnnotations(option: Obj, notes: Annotation[] | undefined): Obj {
+  if (!notes?.length) return option;
+  const axisOf = (key: "xAxis" | "yAxis") => {
+    const a = option[key];
+    const first = (Array.isArray(a) ? a[0] : a) as Obj | undefined;
+    return first && first.type === "category" && Array.isArray(first.data) ? first : null;
+  };
+  const x = axisOf("xAxis");
+  const y = x ? null : axisOf("yAxis");
+  const axis = x ?? y;
+  const series = option.series as Obj[] | undefined;
+  if (!axis || !series?.length) return option;
+  const labels = (axis.data as unknown[]).map((d) => String(typeof d === "object" && d && "value" in d ? (d as Obj).value : d));
+  const lines = notes
+    .filter((n) => labels.includes(n.label))
+    .map((n) => ({ [x ? "xAxis" : "yAxis"]: n.label, label: { formatter: n.text.length > 24 ? `${n.text.slice(0, 23)}…` : n.text } }));
+  if (!lines.length) return option;
+  const markLine = {
+    silent: false, symbol: "none", animation: false, data: lines,
+    lineStyle: { type: "dashed", width: 1.5, color: INK.secondary },
+    label: { show: true, position: x ? "insideEndTop" : "insideEndBottom", color: INK.primary, backgroundColor: INK.surface, padding: [2, 4], fontSize: 11 },
+  };
+  return { ...option, series: series.map((sr, i) => (i === 0 ? { ...sr, markLine } : sr)) };
+}
+
 // ------------------------------------------------------------------ the view
-const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, type, result, identity, height = 420, stale, onMark, onSort }, ref) {
+const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, type, result, identity, height = 420, stale, onMark, onSort, annotations }, ref) {
   const [built, setBuilt] = useState<Built | null>(null);
   const [error, setError] = useState("");
   const chart = useRef<EChartHandle>(null);
@@ -274,6 +310,7 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
     };
   }, [type, cfg, result, identity, usesECharts]);
 
+  const drawn = useMemo(() => (built && annotations?.length ? withAnnotations(built.option as Obj, annotations) : built?.option), [built, annotations]);
   const empty = result.rows.length === 0;
   const pivot = type === "table" && cfg.shelves.columns.some((p) => p.role === "dimension") && result.columns.some((c) => c.role === "measure");
   return (
@@ -289,7 +326,7 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
       ) : error ? (
         <p className="p-6 text-sm text-red-700">{error}</p>
       ) : built && Object.keys(built.option).length ? (
-        <EChart ref={chart} option={built.option} maps={built.maps} height={height} onMark={onMark} />
+        <EChart ref={chart} option={drawn ?? built.option} maps={built.maps} height={height} onMark={onMark} />
       ) : (
         <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>{built?.notes[0] ?? t("Drawing…")}</div>
       )}

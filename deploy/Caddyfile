@@ -13,10 +13,19 @@
 
 	header {
 		X-Content-Type-Options nosniff
-		X-Frame-Options SAMEORIGIN
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+
+	# Pages may be framed only by Lumen itself, except embedded dashboards, which the sites listed in
+	# EMBED_FRAME_ANCESTORS (space separated, e.g. "https://portal.company.ae") may show in an iframe
+	@embed path /embed/*
+	@notembed not path /embed/*
+	header @notembed {
+		X-Frame-Options SAMEORIGIN
+		Content-Security-Policy "frame-ancestors 'self'"
+	}
+	header @embed Content-Security-Policy "frame-ancestors 'self' {$EMBED_FRAME_ANCESTORS:}"
 }
 
 {$SITE_ADDRESS::80} {

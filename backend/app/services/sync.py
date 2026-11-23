@@ -171,10 +171,31 @@ def _sync(db: Session, dataset: Dataset, run: SyncRun) -> None:
     reconcile_fields(db, dataset)  # new columns get fields; labels/formats people set are kept
     db.commit()
     snapshots.prune(dataset.id, dataset.current_version)
+    _after_sync(dataset.id)
     if result is not None:
         # Joined/combined datasets built on this one are refreshed with the new data
         for child in derived.dependents(db, dataset.id):
             enqueue(db, child, "upstream")
+
+
+def _after_sync(dataset_id: int) -> None:
+    """Data checks and alerts on the new data (in the background)."""
+    mode = get_settings().jobs_mode
+    try:
+        if mode == "eager":
+            from app.services.delivery import after_sync
+
+            after_sync(dataset_id)
+        elif mode == "inline":
+            from app.services.delivery import after_sync
+
+            threading.Thread(target=after_sync, args=(dataset_id,), daemon=True).start()
+        else:
+            from app.worker import after_sync as task
+
+            task.delay(dataset_id)
+    except Exception:  # noqa: BLE001 - the sync itself succeeded
+        log.exception("Could not start checks after the sync of %s", dataset_id)
 
 
 def _notify_failure(db: Session, dataset: Dataset, run: SyncRun) -> None:

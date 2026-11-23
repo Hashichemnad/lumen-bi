@@ -18,6 +18,10 @@ celery_app.conf.update(
     beat_schedule={
         # Each dataset has its own cron schedule; this checks every minute which ones are due
         "dispatch-due-syncs": {"task": "lumen.dispatch_due_syncs", "schedule": 60.0},
+        # Subscriptions and alerts whose time has come
+        "dispatch-due-deliveries": {"task": "lumen.dispatch_due_deliveries", "schedule": 60.0},
+        # Freshness checks can start failing without a sync
+        "freshness-checks": {"task": "lumen.freshness_checks", "schedule": 900.0},
     },
 )
 app = celery_app  # `celery -A app.worker` looks for `app`
@@ -47,3 +51,24 @@ def render_dashboard(user_id: int, dashboard_id: int, fmt: str, state: str | Non
     from app.services.render import render_b64
 
     return render_b64(user_id, dashboard_id, fmt, state)
+
+
+@celery_app.task(name="lumen.dispatch_due_deliveries")
+def dispatch_due_deliveries() -> dict:
+    from app.services.delivery import dispatch_due
+
+    return dispatch_due()
+
+
+@celery_app.task(name="lumen.freshness_checks")
+def freshness_checks() -> int:
+    from app.services.checks import run_freshness
+
+    return run_freshness()
+
+
+@celery_app.task(name="lumen.after_sync")
+def after_sync(dataset_id: int) -> None:
+    from app.services.delivery import after_sync as run
+
+    run(dataset_id)

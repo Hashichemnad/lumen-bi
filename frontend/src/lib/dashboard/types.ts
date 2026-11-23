@@ -15,6 +15,9 @@ export interface Tile {
   chart_id?: number;
   /** sections: e.g. a KPI id such as "KPI-07" */
   code?: string;
+  /** KPI goal of a section: the chart tile whose value is the actual, the target, which way is better and
+   * how far from the target still counts as "at risk" (percent of the target) */
+  goal?: { tile: string; target: number; direction: "higher" | "lower"; warn: number } | null;
   title?: string;
   show_title?: boolean;
   text?: string;
@@ -90,6 +93,10 @@ export interface DashboardSummary {
 }
 
 export interface Dashboard extends DashboardSummary {
+  /** Data checks of the datasets on the dashboard: dataset id -> counts and messages of failing ones */
+  quality?: Record<string, { checks: number; failing: number; messages: string[] }>;
+  /** Opened through an embed key or a display link: read only */
+  embedded?: boolean;
   config: DashConfig;
   charts: Record<string, { id: number; name: string; dataset_id: number; config: ChartConfig; can_edit: boolean }>;
   datasets: Record<string, DashDataset>;

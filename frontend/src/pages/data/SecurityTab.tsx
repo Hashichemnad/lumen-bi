@@ -9,6 +9,7 @@ import type {
 } from "../../lib/types";
 import { formatNumber } from "./common";
 import { t } from "../../lib/i18n";
+import { MaskingCard } from "./QualityTab";
 
 interface Directory {
   users: Principal[];
@@ -316,7 +317,7 @@ function CheckCard({ datasetId, directory }: { datasetId: number; directory?: Di
 }
 
 // ------------------------------------------------------------------ the tab
-export default function SecurityTab({ datasetId, canEdit }: { datasetId: number; canEdit: boolean }) {
+export default function SecurityTab({ datasetId, canEdit, columns = [] }: { datasetId: number; canEdit: boolean; columns?: string[] }) {
   const qc = useQueryClient();
   const security = useQuery({ queryKey: ["security", datasetId], queryFn: () => get<DatasetSecurity>(`/datasets/${datasetId}/security`) });
   const directory = useQuery({ queryKey: ["directory"], queryFn: () => get<Directory>("/directory") });
@@ -404,6 +405,8 @@ export default function SecurityTab({ datasetId, canEdit }: { datasetId: number;
           </div>
         )}
       </Card>
+
+      <MaskingCard datasetId={datasetId} columns={columns} canEdit={canEdit} />
 
       {canEdit && <CheckCard datasetId={datasetId} directory={directory.data} />}
 

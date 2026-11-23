@@ -21,6 +21,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
+import EmbedPage, { DisplayPage } from "./pages/EmbedPage";
 import { t } from "./lib/i18n";
 
 // The chart builder (and ECharts) loads only when opened
@@ -48,6 +49,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/embed/:id" element={<EmbedPage />} />
+      <Route path="/display" element={<DisplayPage />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="account" element={<Account />} />

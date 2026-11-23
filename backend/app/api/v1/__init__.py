@@ -8,10 +8,12 @@ from app.api.v1 import (
     charts,
     dashboards,
     data,
+    governance,
     groups,
     model,
     query,
     settings,
+    sharing,
     sso,
     users,
     workspaces,
@@ -31,3 +33,5 @@ api_router.include_router(dashboards.router)
 api_router.include_router(boundaries.router)
 api_router.include_router(settings.router)
 api_router.include_router(workspaces.router)
+api_router.include_router(governance.router)
+api_router.include_router(sharing.router)

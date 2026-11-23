@@ -10,6 +10,12 @@ export class ApiError extends Error {
 }
 
 const BASE = "/api/v1";
+let embedToken: string | null = null;
+
+/** Embedded dashboards and display links: every request carries the embed session instead of a sign-in. */
+export function setEmbedToken(token: string | null) {
+  embedToken = token;
+}
 let refreshing: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -46,6 +52,7 @@ export async function api<T>(
 ): Promise<T> {
   const { method = "GET", body, form, retry = true } = options;
   const headers: Record<string, string> = { "X-Requested-With": "lumen" };
+  if (embedToken) headers["X-Lumen-Embed"] = embedToken;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   const res = await fetch(`${BASE}${path}`, {
