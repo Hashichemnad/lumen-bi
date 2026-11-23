@@ -278,6 +278,8 @@ export interface FieldFormat {
   type: "number" | "currency" | "percent" | "date" | "datetime" | "text";
   decimals?: number;
   currency?: string;
+  grain?: string | null;
+  plain?: boolean;
 }
 
 export interface GroupConfig {

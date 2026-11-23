@@ -451,3 +451,27 @@ class CatalogDatasetOut(BaseModel):
     row_count: int
     last_synced_at: datetime | None
     restricted: bool
+
+
+# ---------- charts ----------
+class ChartIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field("", max_length=2000)
+    dataset_id: int
+    config: dict[str, Any]
+    query: dict[str, Any]
+
+
+class ChartOut(ORM):
+    id: int
+    name: str
+    description: str
+    dataset_id: int
+    dataset_name: str = ""
+    owner_id: int | None
+    owner_name: str = ""
+    config: dict[str, Any]
+    query: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    can_edit: bool = False

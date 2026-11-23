@@ -11,8 +11,8 @@
 | 5 | Salesforce and REST connectors | Done (to be tried against a real Salesforce org) |
 | 6 | Semantic layer | Done |
 | 7 | Query engine + row-level security | Done |
-| 8 | Chart builder UI | Next |
-| 9 | Dashboards UI | — |
+| 8 | Chart builder UI | Done |
+| 9 | Dashboards UI | Next |
 | 10 | Exports, subscriptions, alerts, embedding | — |
 | 11 | AI features | — |
 | 12 | Admin and hardening | — |
@@ -187,16 +187,47 @@ Known limits (by design for now):
 - Not done (optional in the spec): Oracle live mode. Snapshots + DuckDB meet the performance targets, so
   live mode is left for later if a real need appears.
 
-## Next: milestone 8 (chart builder)
+## What exists (milestone 8)
 
-- Chart page: pick a dataset from the catalog, field list (dimensions/measures, hierarchies, parameters),
-  shelves (Columns, Rows, Color, Size, Label, Tooltip, Detail, Filters) that build a query spec.
-- Show Me: bar, line, area, combo, pie/donut, scatter, table / pivot with totals, KPI card, heat map,
-  treemap, map (UAE emirates/GCC/world); quick table calcs; top N; reference and trend lines; conditional
-  formatting; formats from the model.
-- Filter cards (values from `/values`, ranges, relative dates), parameter controls, drill through
-  hierarchies, view underlying rows (rows mode), export CSV.
-- Saved charts (`charts` table: owner, dataset, spec, visual settings), Arabic/RTL-ready layout.
+- Backend: `charts` table (name, description, dataset, owner, `config` = builder state, `query` = the
+  query spec it runs, so the server can rerun it for dashboards, reports and alerts). Migration `0006`.
+  API `app/api/v1/charts.py`: list (own; admins all), create (Explorer+, dataset must be usable, query
+  validated against the spec), get/update/delete (owner or admin), copy. Audited. A dataset with charts
+  cannot be deleted. Tests `test_charts.py`.
+- Frontend chart library `src/lib/chart/`: `types.ts` (pills, filters, config), `query.ts` (config →
+  query spec; mark filters; underlying rows), `showme.ts` (chart types, requirements, automatic choice),
+  `build.ts` (result → ECharts option for bars, stacked, lines, areas, bars + line, scatter, heat map,
+  treemap, donut, filled and bubble maps), `palette.ts` (validated categorical palette in fixed order,
+  folding into "Other"; sequential ramp), `format.ts` (field formats, date grains, compact numbers),
+  `geo.ts` (country names/codes in English and Arabic, emirates and Gulf cities, Natural Earth 1:50m
+  loaded on demand, zoom to the data).
+- `src/components/chart/`: `EChart.tsx` (tree-shaken ECharts, canvas, resize, mark clicks, PNG),
+  `ChartView.tsx` (also flat table with sorting, totals and shading; pivot table; number tiles with
+  sparkline). Reusable by dashboards.
+- Builder `src/pages/charts/`: field panel (dimensions, hierarchies, measures, number of rows,
+  parameters), drag and drop shelves (Columns, Rows, Color, Size, Label, Tooltip, Detail, Filters), pill
+  menus (totals, quick calculations, date levels and parts, drill, sort, dimension ↔ measure), filter
+  editor (values with search and counts, range incl. aggregated, relative dates, top/bottom N, text),
+  Show Me, options (labels, legend, totals, shading, 100% stack, smooth, trend line, reference line, row
+  limit), mark menu (keep only, exclude, drill down, view data), view data with CSV export, CSV and PNG
+  export, undo/redo, swap, save / save copy, unsaved warning. Charts list with copy and delete. The
+  builder and ECharts are loaded only when opened; the world map only when a map is drawn.
+- Chart design rules follow the data-visualisation guidance (validated palette, one axis, colour follows
+  the value, thin marks, legends only for 2+ series): `docs/CHARTS.md`.
+- Tests: 294 backend tests. Browser test: builds bars (with colour), line with running total and a values
+  filter, country map, drill down from a bar into emirates, view data, emirate bubble map, pivot table
+  with shading, heat map, number tiles with sparklines, scatter with trend line, donut, treemap, sorted
+  horizontal bars with an average line; saves, reloads and lists the chart; no page errors.
+
+## Next: milestone 9 (dashboards)
+
+- Dashboards table and API (owner, workspace-free sharing: private / people / groups / everyone, view or
+  edit; viewing a shared dashboard lets people query its charts' datasets, with row-level security).
+- Drag/resize grid of saved charts plus text, image and web blocks; tabs; desktop/tablet/phone layouts.
+- Global filters (one row above the charts: dropdown, multi-select, search, date range presets, numeric
+  range) applying to every chart on the same dataset or mapped fields; parameter controls.
+- Cross-filtering (click a mark to filter the others), drill-down, view underlying rows.
+- Links that keep filters; favourites; comments (maybe 10).
 
 ## Open questions for the owner
 
