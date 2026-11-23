@@ -88,6 +88,8 @@ export interface ChartOptions {
   order?: "value" | "data";
   /** geo map: uploaded boundary file id */
   boundary?: number;
+  /** line and area charts over dates: extend the series (statistics on the server, not AI) */
+  forecast?: { periods: number; interval: 0.8 | 0.9 | 0.95 | 0.99 } | null;
 }
 
 export interface ChartConfig {

@@ -1,10 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { Plus, Search, Star, Users } from "lucide-react";
+import { Plus, Search, Sparkles, Star, Users } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { AutoDashboardModal } from "../../components/AiTools";
 import { Alert, Button, Card, Input, PageHeader, formatDate } from "../../components/ui";
+import { useAi } from "../../lib/ai";
 import { del, get, post, put } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { emptyDashboard, type Dashboard, type DashboardSummary } from "../../lib/dashboard/types";
@@ -73,6 +75,8 @@ export default function DashboardList() {
   const list = useQuery({ queryKey: ["dashboards"], queryFn: () => get<DashboardSummary[]>("/dashboards") });
   const [show, setShow] = useState<Show>("all");
   const [q, setQ] = useState("");
+  const [auto, setAuto] = useState(false);
+  const canAi = useAi();
   const [error, setError] = useState("");
   const create = async () => {
     setError("");
@@ -94,7 +98,13 @@ export default function DashboardList() {
   return (
     <>
       <PageHeader title={current ? current.name : t("Dashboards")} description={current?.description || t("Charts, filters and notes together, shared with the people who need them.")}
-        actions={hasRole("explorer") ? <Button onClick={create}><Plus size={16} /> {t("New dashboard")}</Button> : undefined} />
+        actions={hasRole("explorer") ? (
+          <>
+            {canAi("dashboard") && <Button variant="secondary" onClick={() => setAuto(true)}><Sparkles size={16} /> {t("Build with AI")}</Button>}
+            <Button onClick={create}><Plus size={16} /> {t("New dashboard")}</Button>
+          </>
+        ) : undefined} />
+      {auto && <AutoDashboardModal workspaceId={target} onClose={() => setAuto(false)} onCreated={(id) => navigate(`/dashboards/${id}`)} />}
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(["all", "favorites", "mine", "shared"] as Show[]).map((s) => (

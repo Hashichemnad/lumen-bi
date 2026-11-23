@@ -58,6 +58,9 @@ export function buildQuery(cfg: ChartConfig, type: ChartType, extraFilters: Spec
   }
   if (cfg.options.totals || ["kpi", "gauge", "polar_gauge", "flat_gauge", "rating"].includes(type)) spec.totals = true;
   if (Object.keys(cfg.params).length) spec.params = cfg.params;
+  if (cfg.options.forecast && (type === "line" || type === "area") && dims.some((p) => p.grain)) {
+    spec.forecast = { periods: cfg.options.forecast.periods, interval: cfg.options.forecast.interval };
+  }
   return spec;
 }
 

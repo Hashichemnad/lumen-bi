@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     cache_backend: str = "redis"
     cache_seconds: int = 3600
 
+    # AI: requests one person may make per hour, and how long a model may take to answer
+    ai_hourly_limit: int = 60
+    ai_timeout_seconds: int = 90
+    # MCP server (lets Claude and other AI apps read Lumen data, as the signed-in person)
+    mcp_access_token_minutes: int = 60
+    mcp_refresh_token_days: int = 30
+
     admin_email: str = "admin@example.com"
     admin_password: str = "ChangeMe123!"
     admin_name: str = "Administrator"

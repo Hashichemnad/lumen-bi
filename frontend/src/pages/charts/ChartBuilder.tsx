@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeftRight, Copy, Download, Eraser, Eye, Filter, History, Image, Redo2, Save, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, Copy, Download, Eraser, Eye, Filter, History, Image, Redo2, Save, Sparkles, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
+import { AskBar, ExplainModal } from "../../components/AiTools";
 import ChartView, { type ChartViewHandle } from "../../components/chart/ChartView";
 import type { MarkEvent } from "../../components/chart/EChart";
 import { Alert, Button, Input } from "../../components/ui";
@@ -14,6 +15,7 @@ import { available, resolvedType } from "../../lib/chart/showme";
 import type { Catalog, ChartConfig, ChartOptions, ChartType, FilterPill, Pill, SavedChart, ShelfName } from "../../lib/chart/types";
 import { emptyConfig, newId, SHELVES } from "../../lib/chart/types";
 import { download, get, post, put, saveFile } from "../../lib/api";
+import { takeDraft, useAi } from "../../lib/ai";
 import { useAuth } from "../../lib/auth";
 import { useWorkspace } from "../../lib/workspace";
 import type { Field, QueryResult } from "../../lib/types";
@@ -54,6 +56,8 @@ export default function ChartBuilder() {
   const { target } = useWorkspace();
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
+  const can = useAi();
   const isNew = id === "new";
 
   const saved = useQuery({ queryKey: ["chart", id], queryFn: () => get<SavedChart>(`/charts/${id}`), enabled: !isNew });
@@ -81,6 +85,17 @@ export default function ChartBuilder() {
       setDirty(false);
     }
   }, [saved.data]);
+  // A chart handed over from Ask Data opens here unsaved
+  useEffect(() => {
+    if (!isNew || !datasetId || !search.get("draft") || loaded.current === "draft") return;
+    loaded.current = "draft";
+    const draft = takeDraft(datasetId);
+    if (draft) {
+      setCfgRaw({ ...emptyConfig(), ...draft.config, shelves: { ...emptyConfig().shelves, ...draft.config.shelves } });
+      setName(draft.name);
+      setDirty(true);
+    }
+  }, [isNew, datasetId, search]);
   const setCfg = useCallback((next: ChartConfig | ((c: ChartConfig) => ChartConfig)) => {
     setCfgRaw((current) => {
       const value = typeof next === "function" ? next(current) : next;
@@ -343,12 +358,21 @@ export default function ChartBuilder() {
                 {!["table", "kpi", "rating"].includes(type) && <MenuItem onClick={() => { setExportMenu(null); exportPng(); }}><Image size={14} /> {t("PNG")}</MenuItem>}
               </Menu>
             )}
+            {can("explain") && hasRole("explorer") && (
+              <Button size="sm" variant="secondary" disabled={!data.data?.rows.length} onClick={() => setExplainOpen(true)}><Sparkles size={14} /> {t("Explain")}</Button>
+            )}
             {!isNew && saved.data?.can_edit && <Button size="sm" variant="secondary" onClick={() => setHistoryOpen(true)} aria-label={t("Earlier versions")} title={t("Earlier versions")}><History size={14} /></Button>}
             {!isNew && <Button size="sm" variant="secondary" onClick={() => save(true)} disabled={saving}><Copy size={14} /> {t("Save copy")}</Button>}
             <Button size="sm" onClick={() => save()} disabled={saving || (!dirty && !isNew)}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
           </div>
         </div>
         <div className="space-y-1.5 border-b border-slate-200 bg-white px-4 py-2">
+          {can("ask") && datasetId ? (
+            <AskBar datasetId={datasetId} onAnswer={(a) => {
+              setCfg({ ...emptyConfig(), ...a.config, shelves: { ...emptyConfig().shelves, ...a.config.shelves }, params: cfg.params });
+              if (isNew || !name.trim()) setName(a.title);
+            }} />
+          ) : null}
           <Shelf name="columns" label={t("Columns")} pills={cfg.shelves.columns} {...shelfProps} onDrop={(p, i) => onDrop("columns", p, i)} />
           <Shelf name="rows" label={t("Rows")} pills={cfg.shelves.rows} {...shelfProps} onDrop={(p, i) => onDrop("rows", p, i)} />
         </div>
@@ -396,6 +420,10 @@ export default function ChartBuilder() {
       )}
       {filterEdit && (
         <FilterModal catalog={catalog.data} field={filterEdit.field} existing={filterEdit.existing} onSave={saveFilter} onClose={() => setFilterEdit(null)} />
+      )}
+      {explainOpen && datasetId && (
+        <ExplainModal title={name || title} onClose={() => setExplainOpen(false)}
+          request={{ path: "/ai/explain", body: { query: { ...buildQuery(shown?.cfg ?? cfg, shown?.type ?? type), dataset: datasetId } } }} />
       )}
       {historyOpen && !isNew && (
         <VersionsModal kind="charts" id={Number(id)} onClose={() => setHistoryOpen(false)}

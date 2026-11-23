@@ -271,6 +271,9 @@ class DatasetOut(ORM):
     owner_id: int | None
     owner_name: str = ""
     active_run: "SyncRunOut | None" = None
+    # sensitive data only goes to self-hosted AI models; inherited = built from a sensitive dataset
+    sensitive: bool = False
+    inherited_sensitive: bool = False
     updated_at: datetime
 
 

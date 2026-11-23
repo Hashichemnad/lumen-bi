@@ -34,6 +34,8 @@ export interface Preferences {
   theme?: Theme;
   language?: Language;
   calendar?: CalendarDisplay;
+  /** A short AI summary of favourite dashboards, emailed each morning */
+  ai_digest?: boolean;
 }
 
 const STORE = "lumen.look";

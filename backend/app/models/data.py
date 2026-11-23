@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -57,6 +57,8 @@ class Dataset(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     last_status: Mapped[str] = mapped_column(String(20), default="never")  # never | success | failed
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    # Sensitive data is only ever sent to self-hosted AI models (and datasets built from it inherit this)
+    sensitive: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)
 
@@ -73,6 +75,7 @@ class Dataset(Base):
             "row_count": 0,
             "columns": [],
             "last_status": "never",
+            "sensitive": False,
         }.items():
             kwargs.setdefault(key, value)
         super().__init__(**kwargs)

@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { Check, ChevronDown, X } from "lucide-react";
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import type { Agg, CalcType, Catalog, Grain, Part, Pill, ShelfName } from "../../lib/chart/types";
 import type { Field } from "../../lib/types";
@@ -38,11 +39,13 @@ export function Menu({ anchor, onClose, children }: { anchor: { x: number; y: nu
   }, [onClose]);
   const left = Math.min(anchor.x, window.innerWidth - 240);
   const top = Math.min(anchor.y, window.innerHeight - 380);
-  return (
+  // In a portal: a dashboard tile is positioned with a CSS transform, which would move and clip a fixed menu
+  return createPortal(
     <div ref={ref} role="menu" style={{ left, top }}
       className="fixed z-50 max-h-[70vh] w-56 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

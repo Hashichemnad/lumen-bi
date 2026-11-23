@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import {
   Building2, ChevronDown, Database, History, Home, KeyRound, LayoutDashboard, LogOut, Menu, PieChart, Settings,
-  Users, UsersRound, X,
+  Sparkles, Users, UsersRound, X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -29,6 +29,7 @@ const ADMIN: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: <Users size={18} />, role: "admin" },
   { to: "/admin/groups", label: "Groups", icon: <UsersRound size={18} />, role: "admin" },
   { to: "/admin/sign-in", label: "Sign-in methods", icon: <KeyRound size={18} />, role: "admin" },
+  { to: "/admin/ai", label: "AI", icon: <Sparkles size={18} />, role: "admin" },
   { to: "/admin/settings", label: "Settings", icon: <Settings size={18} />, role: "admin" },
   { to: "/admin/audit", label: "Audit log", icon: <History size={18} />, role: "admin" },
 ];

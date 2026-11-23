@@ -22,6 +22,8 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import EmbedPage, { DisplayPage } from "./pages/EmbedPage";
+import OAuthConsent from "./pages/OAuthConsent";
+import AdminAi from "./pages/admin/Ai";
 import { t } from "./lib/i18n";
 
 // The chart builder (and ECharts) loads only when opened
@@ -38,7 +40,7 @@ function RequireAuth({ children, role }: { children: ReactNode; role?: Role }) {
   const { user, loading, hasRole } = useAuth();
   const location = useLocation();
   if (loading) return <div className="p-8 text-sm text-slate-500">{t("Loading…")}</div>;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (role && !hasRole(role)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
@@ -51,6 +53,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/embed/:id" element={<EmbedPage />} />
       <Route path="/display" element={<DisplayPage />} />
+      <Route path="/oauth/authorize" element={<RequireAuth><OAuthConsent /></RequireAuth>} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="account" element={<Account />} />
@@ -68,6 +71,7 @@ export default function App() {
         <Route path="workspaces" element={<Workspaces />} />
         <Route path="admin/settings" element={<RequireAuth role="admin"><AdminSettings /></RequireAuth>} />
         <Route path="admin/audit" element={<RequireAuth role="admin"><Audit /></RequireAuth>} />
+        <Route path="admin/ai" element={<RequireAuth role="admin"><AdminAi /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

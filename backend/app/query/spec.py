@@ -92,6 +92,15 @@ class Sort(BaseModel):
     dir: Literal["asc", "desc"] = "asc"
 
 
+class Forecast(BaseModel):
+    """Extend a time series: needs one date dimension at a level (month, week...)."""
+
+    periods: int = Field(6, ge=1, le=120)
+    interval: Literal[0.8, 0.9, 0.95, 0.99] = 0.95
+    seasonality: Literal["auto", "none"] | int = "auto"
+    exclude_current: bool = True  # leave the unfinished current period out of the fit
+
+
 def _dims(v):
     return [{"field": x} if isinstance(x, str) else x for x in v or []]
 
@@ -108,6 +117,7 @@ class QuerySpec(BaseModel):
     params: dict[str, Any] = {}
     totals: bool = False
     table_calc: TableCalc | None = None  # applies to every measure that has no calc of its own
+    forecast: Forecast | None = None
 
     _norm_dims = field_validator("dimensions", mode="before")(_dims)
     _norm_measures = field_validator("measures", mode="before")(_dims)

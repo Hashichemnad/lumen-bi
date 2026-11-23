@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ChevronLeft, Download, Eye, GripVertical, Image as ImageIcon, MoreVertical, Pencil, Settings, Trash2 } from "lucide-react";
+import { ChevronLeft, Download, Eye, GripVertical, Image as ImageIcon, MoreVertical, Pencil, Settings, Sparkles, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { ExplainModal } from "../../components/AiTools";
 import ChartView, { type Annotation, type ChartViewHandle } from "../../components/chart/ChartView";
+import { useAi } from "../../lib/ai";
+import { useAuth } from "../../lib/auth";
 import type { KpiResult } from "../../lib/governance";
 import { KpiLine } from "./Collab";
 import type { MarkEvent } from "../../components/chart/EChart";
@@ -55,6 +58,9 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
   const [mark, setMark] = useState<MarkEvent | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [error, setError] = useState("");
+  const [explain, setExplain] = useState(false);
+  const { hasRole } = useAuth();
+  const canAi = useAi(!dash.embedded && hasRole("explorer"));
   const cfg: ChartConfig | undefined = useMemo(() => (chart ? drilledConfig(chart.config, drill) : undefined), [chart, drill]);
   const fields = (dataset?.fields ?? []) as unknown as Field[];
   const type = cfg ? resolvedType(cfg, fields) : "table";
@@ -159,10 +165,17 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
           {!["table", "kpi", "rating"].includes(type) && (
             <MenuItem onClick={() => { const url = view.current?.png(); if (url) saveFile(url, `${title}.png`); setMenu(null); }}><ImageIcon size={14} /> {t("Save as image")}</MenuItem>
           )}
+          {canAi("explain") && !dash.embedded && hasRole("explorer") && !!data.data?.rows.length && (
+            <MenuItem onClick={() => { setExplain(true); setMenu(null); }}><Sparkles size={14} /> {t("Explain")}</MenuItem>
+          )}
           {chart.can_edit && (
             <Link to={`/charts/${chart.id}`} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-100"><span className="w-4" /><Pencil size={14} /> {t("Open in chart builder")}</Link>
           )}
         </Menu>
+      )}
+      {explain && (
+        <ExplainModal title={title} onClose={() => setExplain(false)}
+          request={{ path: "/ai/explain-tile", body: { dashboard_id: dash.id, ...body } }} />
       )}
     </div>
   );

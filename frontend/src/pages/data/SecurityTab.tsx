@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Lock, Pencil, Plus, ShieldCheck, Trash2, Users, X } from "lucide-react";
+import { Eye, Lock, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Alert, Badge, Button, Card, Field as FormField, Input, Modal, Select } from "../../components/ui";
@@ -317,7 +317,47 @@ function CheckCard({ datasetId, directory }: { datasetId: number; directory?: Di
 }
 
 // ------------------------------------------------------------------ the tab
-export default function SecurityTab({ datasetId, canEdit, columns = [] }: { datasetId: number; canEdit: boolean; columns?: string[] }) {
+/** Sensitive data is only ever sent to self-hosted AI models (never to cloud AI services). */
+function SensitiveCard({ dataset, canEdit }: { dataset: Dataset; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const [error, setError] = useState("");
+  const on = dataset.sensitive || dataset.inherited_sensitive;
+  const toggle = async () => {
+    setError("");
+    try {
+      await put(`/datasets/${dataset.id}/sensitive`, { sensitive: !dataset.sensitive });
+      await qc.invalidateQueries({ queryKey: ["dataset"] });
+    } catch (err) {
+      setError(message(err, "Could not save"));
+    }
+  };
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="flex items-center gap-2 font-semibold"><ShieldAlert size={16} /> {t("Sensitive data")}</h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {dataset.inherited_sensitive
+              ? t("Built from sensitive data, so it is sensitive too. AI questions about it go only to self-hosted models.")
+              : on
+                ? t("AI questions about this data go only to self-hosted models. If none is set up, AI is not available for it.")
+                : t("Mark data as sensitive to keep it away from cloud AI services. Only self-hosted models will see it.")}
+          </p>
+        </div>
+        {canEdit && !dataset.inherited_sensitive && (
+          <label className="flex shrink-0 items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={dataset.sensitive} onChange={toggle} className="h-4 w-4" />
+            {t("Sensitive")}
+          </label>
+        )}
+        {dataset.inherited_sensitive && <Badge tone="amber">{t("Sensitive")}</Badge>}
+      </div>
+      {error && <div className="mt-3"><Alert>{error}</Alert></div>}
+    </Card>
+  );
+}
+
+export default function SecurityTab({ datasetId, canEdit, columns = [], dataset }: { datasetId: number; canEdit: boolean; columns?: string[]; dataset?: Dataset }) {
   const qc = useQueryClient();
   const security = useQuery({ queryKey: ["security", datasetId], queryFn: () => get<DatasetSecurity>(`/datasets/${datasetId}/security`) });
   const directory = useQuery({ queryKey: ["directory"], queryFn: () => get<Directory>("/directory") });
@@ -407,6 +447,8 @@ export default function SecurityTab({ datasetId, canEdit, columns = [] }: { data
       </Card>
 
       <MaskingCard datasetId={datasetId} columns={columns} canEdit={canEdit} />
+
+      {dataset && <SensitiveCard dataset={dataset} canEdit={canEdit} />}
 
       {canEdit && <CheckCard datasetId={datasetId} directory={directory.data} />}
 

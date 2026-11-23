@@ -81,6 +81,20 @@ Without signing the screen in, an admin can make a **display link** (More → Di
   here*.
 - **Subscribe** (More → Subscribe): get the dashboard by email (PDF, picture or link) on a schedule. Managers
   can add people and groups and post to Teams; everyone gets their own data.
-- **Alerts** (More → Alerts): a message when a chart's value crosses a limit or a KPI goes off track.
+- **Alerts** (More → Alerts): a message when a chart's value crosses a limit, something unusual happens (the
+  latest day, week or month is far from usual) or a KPI goes off track.
 - **Earlier versions** (More): the last two versions; Restore goes back (and keeps the current one).
 - **Data checks** (Data → dataset → Quality) and **masking** (Security tab) are for dataset owners.
+
+## AI (when an admin has added a model)
+
+- **Ask your data** (Home): type a question in English or Arabic; you get a chart and a short answer from the
+  data you may see. *Save chart* or *Open in chart builder* to change it.
+- **Chart builder**: *Describe the chart you want* fills the shelves; **Explain** lists what stands out;
+  Options → **Forecast** (line and area charts over a date) adds a dashed forecast with its likely range — no
+  AI involved.
+- **Dashboards**: *Build with AI* makes a starter dashboard for a dataset; a tile's ⋮ menu → *Explain*.
+- **Calculated fields**: *Write it for me* turns a description into a formula, checked before you use it.
+- **My account**: *Daily summary* (a morning email about your favourite dashboards) and *Connected AI apps*
+  (Claude and other apps you allowed to read Lumen).
+- Admins: Admin → AI (models, sensitive data, Claude connector, comparison); see `docs/AI.md`.
