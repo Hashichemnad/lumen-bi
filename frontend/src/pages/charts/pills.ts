@@ -11,9 +11,11 @@ export const CALC_LABEL: Record<CalcType, string> = {
   pct_change: "% change from previous", rank: "Rank", moving_avg: "Moving average (3)",
 };
 export const GRAIN_LABEL: Record<Grain, string> = {
+  fiscal_year: "Fiscal year", fiscal_quarter: "Fiscal quarter",
   year: "Year", quarter: "Quarter", month: "Month", week: "Week", day: "Day", hour: "Hour", minute: "Minute",
 };
 export const PART_LABEL: Record<Part, string> = {
+  fiscal_year: "Fiscal year number", fiscal_quarter: "Quarter of fiscal year",
   year: "Year number", quarter: "Quarter of year", month: "Month of year", week: "Week of year", weekday: "Day of week", day: "Day of month", hour: "Hour of day",
 };
 export const SHELF_LABEL: Record<ShelfName, string> = {

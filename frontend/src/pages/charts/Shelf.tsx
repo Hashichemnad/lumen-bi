@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "rea
 import type { Agg, CalcType, Catalog, Grain, Part, Pill, ShelfName } from "../../lib/chart/types";
 import type { Field } from "../../lib/types";
 import { AGG_LABEL, CALC_LABEL, GRAIN_LABEL, PART_LABEL, drillDown, drillUp, isDate, isNumber, pillText } from "./pills";
+import { t } from "../../lib/i18n";
 
 export const DND = "application/x-lumen";
 export type DragPayload = { from: "field"; field: string; role: "dimension" | "measure" } | { from: "pill"; id: string };
@@ -48,7 +49,7 @@ export function Menu({ anchor, onClose, children }: { anchor: { x: number; y: nu
 export function MenuItem({ onClick, children, checked, disabled }: { onClick: () => void; children: ReactNode; checked?: boolean; disabled?: boolean }) {
   return (
     <button role="menuitem" disabled={disabled} onClick={onClick}
-      className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-100 disabled:opacity-40">
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-start hover:bg-slate-100 disabled:opacity-40">
       <span className="w-4">{checked && <Check size={14} className="text-brand-600" />}</span>
       {children}
     </button>
@@ -86,67 +87,67 @@ function PillChip({ pill, fields, catalog, sortDir, actions }: {
     <>
       <span draggable onDragStart={(e) => setDrag(e, { from: "pill", id: pill.id })}
         className={clsx(
-          "inline-flex cursor-grab items-center gap-1 rounded-full border py-0.5 pl-2.5 pr-1 text-xs font-medium active:cursor-grabbing",
-          missing ? "border-red-300 bg-red-50 text-red-700" : measure ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-sky-200 bg-sky-50 text-sky-800",
+          "inline-flex cursor-grab items-center gap-1 rounded-full border py-0.5 ps-2.5 pe-1 text-xs font-medium active:cursor-grabbing",
+          missing ? "border-red-300 bg-red-50 text-red-700" : measure ? "pill-measure border-emerald-200 bg-emerald-50 text-emerald-800" : "pill-dim border-sky-200 bg-sky-50 text-sky-800",
         )}
-        title={missing ? "This field no longer exists" : undefined}>
-        <button onClick={(e) => setMenu({ x: e.clientX, y: e.clientY + 8 })} className="inline-flex items-center gap-0.5" aria-label={`Options for ${pillText(pill, fields)}`}>
+        title={missing ? t("This field no longer exists") : undefined}>
+        <button onClick={(e) => setMenu({ x: e.clientX, y: e.clientY + 8 })} className="inline-flex items-center gap-0.5" aria-label={t("Options for {v0}", { v0: pillText(pill, fields) })}>
           {pillText(pill, fields)}
           {sortDir && <span className="text-[10px]">{sortDir === "asc" ? "↑" : "↓"}</span>}
           <ChevronDown size={12} />
         </button>
-        <button onClick={() => actions.change(pill.id, null)} className="rounded-full p-0.5 hover:bg-black/5" aria-label="Remove"><X size={12} /></button>
+        <button onClick={() => actions.change(pill.id, null)} className="rounded-full p-0.5 hover:bg-black/5" aria-label={t("Remove")}><X size={12} /></button>
       </span>
       {menu && (
         <Menu anchor={menu} onClose={close}>
           {measure && !f?.is_aggregate && pill.field !== "*" && (
             <>
-              <MenuTitle>Total</MenuTitle>
+              <MenuTitle>{t("Total")}</MenuTitle>
               {(Object.keys(AGG_LABEL) as Agg[])
                 .filter((a) => isNumber(f) || ["count", "count_distinct", "min", "max"].includes(a))
                 .filter((a) => a !== "var")
-                .map((a) => <MenuItem key={a} checked={(pill.agg ?? f?.default_agg) === a} onClick={() => set({ agg: a, p: a === "percentile" ? 0.9 : undefined })}>{AGG_LABEL[a]}</MenuItem>)}
+                .map((a) => <MenuItem key={a} checked={(pill.agg ?? f?.default_agg) === a} onClick={() => set({ agg: a, p: a === "percentile" ? 0.9 : undefined })}>{t(AGG_LABEL[a])}</MenuItem>)}
               <MenuLine />
             </>
           )}
           {measure && (
             <>
-              <MenuTitle>Quick calculation</MenuTitle>
-              <MenuItem checked={!pill.calc} onClick={() => set({ calc: undefined })}>None</MenuItem>
+              <MenuTitle>{t("Quick calculation")}</MenuTitle>
+              <MenuItem checked={!pill.calc} onClick={() => set({ calc: undefined })}>{t("None")}</MenuItem>
               {(Object.keys(CALC_LABEL) as CalcType[]).map((c) => (
-                <MenuItem key={c} checked={pill.calc?.type === c} onClick={() => set({ calc: { type: c, ...(c === "moving_avg" ? { window: 3 } : {}) } })}>{CALC_LABEL[c]}</MenuItem>
+                <MenuItem key={c} checked={pill.calc?.type === c} onClick={() => set({ calc: { type: c, ...(c === "moving_avg" ? { window: 3 } : {}) } })}>{t(CALC_LABEL[c])}</MenuItem>
               ))}
               <MenuLine />
             </>
           )}
           {!measure && isDate(f) && (
             <>
-              <MenuTitle>Date</MenuTitle>
-              {(["year", "quarter", "month", "week", "day"] as Grain[]).map((g) => <MenuItem key={g} checked={pill.grain === g} onClick={() => set({ grain: g, part: undefined })}>{GRAIN_LABEL[g]}</MenuItem>)}
-              {f?.data_type === "datetime" && <MenuItem checked={pill.grain === "hour"} onClick={() => set({ grain: "hour", part: undefined })}>Hour</MenuItem>}
-              <MenuItem checked={!pill.grain && !pill.part} onClick={() => set({ grain: undefined, part: undefined })}>Exact date</MenuItem>
-              <MenuTitle>Date part</MenuTitle>
-              {(["month", "quarter", "weekday", "day", "year"] as Part[]).map((p) => <MenuItem key={p} checked={pill.part === p} onClick={() => set({ part: p, grain: undefined })}>{PART_LABEL[p]}</MenuItem>)}
+              <MenuTitle>{t("Date")}</MenuTitle>
+              {(["year", "quarter", "month", "week", "day", "fiscal_year", "fiscal_quarter"] as Grain[]).map((g) => <MenuItem key={g} checked={pill.grain === g} onClick={() => set({ grain: g, part: undefined })}>{t(GRAIN_LABEL[g])}</MenuItem>)}
+              {f?.data_type === "datetime" && <MenuItem checked={pill.grain === "hour"} onClick={() => set({ grain: "hour", part: undefined })}>{t("Hour")}</MenuItem>}
+              <MenuItem checked={!pill.grain && !pill.part} onClick={() => set({ grain: undefined, part: undefined })}>{t("Exact date")}</MenuItem>
+              <MenuTitle>{t("Date part")}</MenuTitle>
+              {(["month", "quarter", "weekday", "day", "year", "fiscal_quarter", "fiscal_year"] as Part[]).map((p) => <MenuItem key={p} checked={pill.part === p} onClick={() => set({ part: p, grain: undefined })}>{t(PART_LABEL[p])}</MenuItem>)}
               <MenuLine />
             </>
           )}
           {(down || up) && (
             <>
-              {down && <MenuItem onClick={() => { actions.drill(pill.id, "down"); close(); }}>Drill down to {down.label}</MenuItem>}
-              {up && <MenuItem onClick={() => { actions.drill(pill.id, "up"); close(); }}>Drill up to {up.label}</MenuItem>}
+              {down && <MenuItem onClick={() => { actions.drill(pill.id, "down"); close(); }}>{t("Drill down to {label}", { label: down.label })}</MenuItem>}
+              {up && <MenuItem onClick={() => { actions.drill(pill.id, "up"); close(); }}>{t("Drill up to {label}", { label: up.label })}</MenuItem>}
               <MenuLine />
             </>
           )}
-          <MenuItem checked={sortDir === "asc"} onClick={() => { actions.sort(pill.id, sortDir === "asc" ? null : "asc"); close(); }}>Sort ascending</MenuItem>
-          <MenuItem checked={sortDir === "desc"} onClick={() => { actions.sort(pill.id, sortDir === "desc" ? null : "desc"); close(); }}>Sort descending</MenuItem>
+          <MenuItem checked={sortDir === "asc"} onClick={() => { actions.sort(pill.id, sortDir === "asc" ? null : "asc"); close(); }}>{t("Sort ascending")}</MenuItem>
+          <MenuItem checked={sortDir === "desc"} onClick={() => { actions.sort(pill.id, sortDir === "desc" ? null : "desc"); close(); }}>{t("Sort descending")}</MenuItem>
           <MenuLine />
           {pill.field !== "*" && !f?.is_aggregate && (
             measure
-              ? <MenuItem onClick={() => set({ role: "dimension", agg: undefined, calc: undefined, grain: isDate(f) ? "month" : undefined })}>Use as dimension</MenuItem>
-              : <MenuItem onClick={() => set({ role: "measure", agg: isNumber(f) ? "sum" : "count_distinct", grain: undefined, part: undefined })}>Use as measure ({isNumber(f) ? "sum" : "count distinct"})</MenuItem>
+              ? <MenuItem onClick={() => set({ role: "dimension", agg: undefined, calc: undefined, grain: isDate(f) ? "month" : undefined })}>{t("Use as dimension")}</MenuItem>
+              : <MenuItem onClick={() => set({ role: "measure", agg: isNumber(f) ? "sum" : "count_distinct", grain: undefined, part: undefined })}>{t("Use as measure ({v0})", { v0: isNumber(f) ? "sum" : t("count distinct") })}</MenuItem>
           )}
-          {pill.field !== "*" && !f?.is_aggregate && <MenuItem onClick={() => { actions.filter(pill.field); close(); }}>Filter…</MenuItem>}
-          <MenuItem onClick={() => { actions.change(pill.id, null); close(); }}>Remove</MenuItem>
+          {pill.field !== "*" && !f?.is_aggregate && <MenuItem onClick={() => { actions.filter(pill.field); close(); }}>{t("Filter…")}</MenuItem>}
+          <MenuItem onClick={() => { actions.change(pill.id, null); close(); }}>{t("Remove")}</MenuItem>
         </Menu>
       )}
     </>
@@ -189,7 +190,7 @@ export function Shelf({ name, label, pills, fields, catalog, sort, actions, onDr
             <PillChip pill={p} fields={fields} catalog={catalog} sortDir={sort?.pill === p.id ? sort.dir : null} actions={actions} />
           </span>
         ))}
-        {!pills.length && <span className="text-xs text-slate-400">{hint ?? "Drop fields here"}</span>}
+        {!pills.length && <span className="text-xs text-slate-400">{hint ?? t("Drop fields here")}</span>}
       </div>
     </div>
   );

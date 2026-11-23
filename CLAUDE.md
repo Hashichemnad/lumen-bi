@@ -45,4 +45,6 @@ docker compose up --build                   # http://localhost:8080
   frontend `api()` helper adds it.
 - Keep CI fast: lint + unit tests on every push; heavy jobs (Docker build, browser tests) only on PRs to main.
 - Python: typed, Ruff-clean, line length 110. TypeScript: strict, no `any` unless unavoidable.
-- UI text: short, plain English (Arabic translations come with the i18n milestone).
+- UI text: short, plain English, wrapped in `t()` from `src/lib/i18n` (`t("Saved {n}", { n })`), with the
+  Arabic in `src/lib/i18n/ar.ts`. Never call `t()` at module level (it would freeze the language). Use logical
+  classes (`ms-`, `pe-`, `start-`, `text-start`) so right-to-left pages work; colours come from the theme scales.

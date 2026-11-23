@@ -35,6 +35,7 @@ export interface User {
   created_at: string;
   groups: GroupRef[];
   sign_in_methods: SignInMethod[];
+  preferences?: { theme?: "classic" | "advanced" | "analyst"; language?: "en" | "ar"; calendar?: "gregorian" | "hijri" | "both" };
 }
 
 export interface Group {

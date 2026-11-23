@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Alert, Button, Field, Input, Modal, Select } from "../../components/ui";
 import { get, post, put } from "../../lib/api";
 import type { Dataset, JoinSpec } from "../../lib/types";
+import { t } from "../../lib/i18n";
 
 type Join = JoinSpec["joins"][number];
 
@@ -61,30 +62,30 @@ export default function CombineModal({ existing, onClose, onSaved }: {
       onSaved?.(saved);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save");
+      setError(err instanceof Error ? err.message : t("Could not save"));
     }
   };
 
   return (
-    <Modal open wide title={existing ? `Edit ${existing.name}` : "Combine datasets"} onClose={onClose}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={save} disabled={!name.trim()}>{existing ? "Save and rebuild" : "Create"}</Button></>}>
+    <Modal open wide title={existing ? `Edit ${existing.name}` : t("Combine datasets")} onClose={onClose}
+      footer={<><Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={save} disabled={!name.trim()}>{existing ? t("Save and rebuild") : t("Create")}</Button></>}>
       {error && <Alert>{error}</Alert>}
       {!existing && (
         <div className="flex gap-4 text-sm">
           <label className="flex items-start gap-2"><input type="radio" className="mt-1" checked={mode === "join"} onChange={() => setMode("join")} />
-            <span><b>Join</b><br /><span className="text-slate-500">Add columns from other datasets by matching keys (e.g. orders + customer details).</span></span></label>
+            <span><b>{t("Join")}</b><br /><span className="text-slate-500">{t("Add columns from other datasets by matching keys (e.g. orders + customer details).")}</span></span></label>
           <label className="flex items-start gap-2"><input type="radio" className="mt-1" checked={mode === "union"} onChange={() => setMode("union")} />
-            <span><b>Union</b><br /><span className="text-slate-500">Stack rows of similar datasets (e.g. one file per branch or month).</span></span></label>
+            <span><b>{t("Union")}</b><br /><span className="text-slate-500">{t("Stack rows of similar datasets (e.g. one file per branch or month).")}</span></span></label>
         </div>
       )}
-      <Field label="Name of the new dataset"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={mode === "join" ? "Orders with customers" : "All branches"} /></Field>
+      <Field label={t("Name of the new dataset")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={mode === "join" ? t("Orders with customers") : t("All branches")} /></Field>
 
       {mode === "join" ? (
         <div className="space-y-3">
-          <Field label="Start from">
+          <Field label={t("Start from")}>
             <Select value={base || ""} onChange={(e) => { setBase(Number(e.target.value)); setJoins([]); }}>
-              <option value="">Choose a dataset…</option>
+              <option value="">{t("Choose a dataset…")}</option>
               {usable.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </Select>
           </Field>
@@ -101,12 +102,12 @@ export default function CombineModal({ existing, onClose, onSaved }: {
                     {usable.filter((d) => d.id !== base).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </Select>
                   <Select value={j.type} onChange={(e) => setJoin(i, { type: e.target.value as Join["type"] })}>
-                    <option value="left">Keep all rows</option>
-                    <option value="inner">Only matches</option>
-                    <option value="full">All from both</option>
+                    <option value="left">{t("Keep all rows")}</option>
+                    <option value="inner">{t("Only matches")}</option>
+                    <option value="full">{t("All from both")}</option>
                   </Select>
-                  <Input value={j.alias} title="Prefix for its columns" onChange={(e) => setJoin(i, { alias: e.target.value })} />
-                  <Button variant="ghost" aria-label="Remove" onClick={() => setJoins(joins.filter((_, k) => k !== i))}><Trash2 size={16} /></Button>
+                  <Input value={j.alias} title={t("Prefix for its columns")} onChange={(e) => setJoin(i, { alias: e.target.value })} />
+                  <Button variant="ghost" aria-label={t("Remove")} onClick={() => setJoins(joins.filter((_, k) => k !== i))}><Trash2 size={16} /></Button>
                 </div>
                 {j.on.map((pair, p) => (
                   <div key={p} className="flex items-center gap-2 text-sm">
@@ -120,16 +121,16 @@ export default function CombineModal({ existing, onClose, onSaved }: {
                     {j.on.length > 1 && <Button variant="ghost" size="sm" onClick={() => setJoin(i, { on: j.on.filter((_, k) => k !== p) })}><Trash2 size={14} /></Button>}
                   </div>
                 ))}
-                <Button variant="ghost" size="sm" onClick={() => setJoin(i, { on: [...j.on, guessKey(lefts, right)] })}><Plus size={14} /> Match on another column</Button>
+                <Button variant="ghost" size="sm" onClick={() => setJoin(i, { on: [...j.on, guessKey(lefts, right)] })}><Plus size={14} /> {t("Match on another column")}</Button>
               </div>
             );
           })}
-          <Button variant="secondary" size="sm" disabled={!base} onClick={addJoin}><Plus size={14} /> Join a dataset</Button>
-          <p className="text-xs text-slate-500">Joined columns are named "prefix.column". "Keep all rows" keeps every row of the left side even without a match.</p>
+          <Button variant="secondary" size="sm" disabled={!base} onClick={addJoin}><Plus size={14} /> {t("Join a dataset")}</Button>
+          <p className="text-xs text-slate-500">{t("Joined columns are named \"prefix.column\". \"Keep all rows\" keeps every row of the left side even without a match.")}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          <Field label="Datasets to stack">
+          <Field label={t("Datasets to stack")}>
             <div className="flex flex-wrap gap-2">
               {usable.map((d) => (
                 <label key={d.id} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-sm">
@@ -140,11 +141,11 @@ export default function CombineModal({ existing, onClose, onSaved }: {
               ))}
             </div>
           </Field>
-          <Field label="Column saying where each row came from (optional)"><Input value={sourceColumn} onChange={(e) => setSourceColumn(e.target.value)} /></Field>
-          <p className="text-xs text-slate-500">Columns are matched by name; a column missing in one dataset is empty for its rows.</p>
+          <Field label={t("Column saying where each row came from (optional)")}><Input value={sourceColumn} onChange={(e) => setSourceColumn(e.target.value)} /></Field>
+          <p className="text-xs text-slate-500">{t("Columns are matched by name; a column missing in one dataset is empty for its rows.")}</p>
         </div>
       )}
-      <p className="text-xs text-slate-500">The result is rebuilt automatically whenever one of these datasets syncs.</p>
+      <p className="text-xs text-slate-500">{t("The result is rebuilt automatically whenever one of these datasets syncs.")}</p>
     </Modal>
   );
 }

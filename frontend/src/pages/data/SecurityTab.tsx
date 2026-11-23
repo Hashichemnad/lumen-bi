@@ -8,6 +8,7 @@ import type {
   Dataset, DatasetAccess, DatasetSecurity, Field, Principal, QueryResult, RlsRule, SecurityCheck,
 } from "../../lib/types";
 import { formatNumber } from "./common";
+import { t } from "../../lib/i18n";
 
 interface Directory {
   users: Principal[];
@@ -26,7 +27,7 @@ function Chip({ children, onRemove }: { children: React.ReactNode; onRemove?: ()
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
       {children}
-      {onRemove && <button onClick={onRemove} className="text-slate-400 hover:text-slate-700" aria-label="Remove"><X size={12} /></button>}
+      {onRemove && <button onClick={onRemove} className="text-slate-400 hover:text-slate-700" aria-label={t("Remove")}><X size={12} /></button>}
     </span>
   );
 }
@@ -65,24 +66,24 @@ function AccessCard({ datasetId, access, directory, canEdit }: {
   };
   return (
     <Card className="p-5">
-      <h3 className="flex items-center gap-2 font-semibold"><Users size={16} /> Who can use this dataset</h3>
-      <p className="mt-1 text-sm text-slate-500">Creators and admins can always use it. Others need access here (or through a shared dashboard, coming later).</p>
+      <h3 className="flex items-center gap-2 font-semibold"><Users size={16} /> {t("Who can use this dataset")}</h3>
+      <p className="mt-1 text-sm text-slate-500">{t("Creators and admins can always use it. Others need access here (or through a shared dashboard, coming later).")}</p>
       {error && <div className="mt-3"><Alert>{error}</Alert></div>}
       <label className="mt-4 flex items-center gap-2 text-sm">
         <input type="checkbox" checked={everyone} disabled={!canEdit} onChange={(e) => setEveryone(e.target.checked)} />
-        Everyone who can sign in
+        {t("Everyone who can sign in")}
       </label>
       {!everyone && (
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div>
-            <div className="mb-1.5 text-xs font-medium text-slate-600">People</div>
+            <div className="mb-1.5 text-xs font-medium text-slate-600">{t("People")}</div>
             <div className="flex flex-wrap gap-1.5">
               {userIds.map((id) => <Chip key={id} onRemove={canEdit ? () => setUserIds(userIds.filter((x) => x !== id)) : undefined}>{userName(id)}</Chip>)}
-              {!userIds.length && <span className="text-xs text-slate-400">No one</span>}
+              {!userIds.length && <span className="text-xs text-slate-400">{t("No one")}</span>}
             </div>
             {canEdit && (
               <Select className="mt-2 py-1.5" value="" onChange={(e) => e.target.value && setUserIds([...userIds, Number(e.target.value)])}>
-                <option value="">Add a person…</option>
+                <option value="">{t("Add a person…")}</option>
                 {directory?.users.filter((u) => !userIds.includes(u.id) && u.role !== "admin" && u.role !== "creator").map((u) => (
                   <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email}</option>
                 ))}
@@ -90,14 +91,14 @@ function AccessCard({ datasetId, access, directory, canEdit }: {
             )}
           </div>
           <div>
-            <div className="mb-1.5 text-xs font-medium text-slate-600">Groups</div>
+            <div className="mb-1.5 text-xs font-medium text-slate-600">{t("Groups")}</div>
             <div className="flex flex-wrap gap-1.5">
               {groupIds.map((id) => <Chip key={id} onRemove={canEdit ? () => setGroupIds(groupIds.filter((x) => x !== id)) : undefined}>{groupName(id)}</Chip>)}
-              {!groupIds.length && <span className="text-xs text-slate-400">No groups</span>}
+              {!groupIds.length && <span className="text-xs text-slate-400">{t("No groups")}</span>}
             </div>
             {canEdit && (
               <Select className="mt-2 py-1.5" value="" onChange={(e) => e.target.value && setGroupIds([...groupIds, Number(e.target.value)])}>
-                <option value="">Add a group…</option>
+                <option value="">{t("Add a group…")}</option>
                 {directory?.groups.filter((g) => !groupIds.includes(g.id)).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
               </Select>
             )}
@@ -106,8 +107,8 @@ function AccessCard({ datasetId, access, directory, canEdit }: {
       )}
       {canEdit && (
         <div className="mt-4 flex items-center gap-3">
-          <Button onClick={save} disabled={!changed}>Save access</Button>
-          {saved && <span className="text-sm text-green-700">Saved</span>}
+          <Button onClick={save} disabled={!changed}>{t("Save access")}</Button>
+          {saved && <span className="text-sm text-green-700">{t("Saved")}</span>}
         </div>
       )}
     </Card>
@@ -154,66 +155,66 @@ function RuleModal({ datasetId, existing, attributes, directory, onClose }: {
   };
 
   return (
-    <Modal open wide title={existing ? "Edit rule" : "Add a row-level security rule"} onClose={onClose}
+    <Modal open wide title={existing ? t("Edit rule") : t("Add a row-level security rule")} onClose={onClose}
       footer={<>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
-        <Button onClick={save} disabled={saving || !cfg.field}>{saving ? "Saving…" : "Save rule"}</Button>
+        <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+        <Button onClick={save} disabled={saving || !cfg.field}>{saving ? t("Saving…") : t("Save rule")}</Button>
       </>}>
       <div className="space-y-4">
         {error && <Alert>{error}</Alert>}
-        <FormField label="Name (optional)"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sales reps see their region" /></FormField>
+        <FormField label={t("Name (optional)")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("e.g. Sales reps see their region")} /></FormField>
         <div className="grid grid-cols-2 gap-2">
           {([
             ["attribute", "User attribute", "Match a field to a value on the user, e.g. Region = user's region"],
             ["entitlement", "Access table", "Look up allowed values per user in another dataset"],
           ] as const).map(([k, title, hint]) => (
             <button key={k} onClick={() => setKind(k)}
-              className={`rounded-lg border p-3 text-left text-sm ${kind === k ? "border-brand-600 bg-brand-50" : "border-slate-200 hover:border-slate-300"}`}>
+              className={`rounded-lg border p-3 text-start text-sm ${kind === k ? "border-brand-600 bg-brand-50" : "border-slate-200 hover:border-slate-300"}`}>
               <div className="font-medium">{title}</div>
               <div className="mt-0.5 text-xs text-slate-500">{hint}</div>
             </button>
           ))}
         </div>
-        <FormField label="Only show rows where this field…">
+        <FormField label={t("Only show rows where this field…")}>
           <Select value={cfg.field} onChange={(e) => set({ field: e.target.value })}>
-            <option value="">Choose a field</option>
+            <option value="">{t("Choose a field")}</option>
             {usable.map((f) => <option key={f.id} value={f.name}>{f.label || f.name}</option>)}
           </Select>
         </FormField>
         {kind === "attribute" ? (
-          <FormField label="…is one of the user's values for this attribute"
-            hint="Set attributes on each user (Admin → Users) or copy them from Microsoft / UAE PASS. Built in: email, name, user_id, groups.">
-            <Input list="rls-attributes" value={cfg.attribute ?? ""} onChange={(e) => set({ attribute: e.target.value })} placeholder="e.g. region" />
+          <FormField label={t("…is one of the user's values for this attribute")}
+            hint={t("Set attributes on each user (Admin → Users) or copy them from Microsoft / UAE PASS. Built in: email, name, user_id, groups.")}>
+            <Input list="rls-attributes" value={cfg.attribute ?? ""} onChange={(e) => set({ attribute: e.target.value })} placeholder={t("e.g. region")} />
             <datalist id="rls-attributes">{attributes.map((a) => <option key={a} value={a} />)}</datalist>
           </FormField>
         ) : (
           <div className="space-y-4 rounded-lg bg-slate-50 p-3">
-            <FormField label="…is listed for the user in this dataset">
+            <FormField label={t("…is listed for the user in this dataset")}>
               <Select value={cfg.dataset ?? ""} onChange={(e) => set({ dataset: Number(e.target.value) || undefined, user_column: "", value_column: "" })}>
-                <option value="">Choose the access table</option>
+                <option value="">{t("Choose the access table")}</option>
                 {accessTables.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </Select>
             </FormField>
             {table && (
               <div className="grid grid-cols-2 gap-3">
-                <FormField label="Column with the user">
+                <FormField label={t("Column with the user")}>
                   <Select value={cfg.user_column ?? ""} onChange={(e) => set({ user_column: e.target.value })}>
-                    <option value="">Choose</option>
+                    <option value="">{t("Choose")}</option>
                     {tableColumns.map((c) => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </FormField>
-                <FormField label="Matched with the user's">
+                <FormField label={t("Matched with the user's")}>
                   <Input list="rls-attributes" value={cfg.match ?? "email"} onChange={(e) => set({ match: e.target.value })} />
                   <datalist id="rls-attributes">{attributes.map((a) => <option key={a} value={a} />)}</datalist>
                 </FormField>
-                <FormField label="Column with allowed values">
+                <FormField label={t("Column with allowed values")}>
                   <Select value={cfg.value_column ?? ""} onChange={(e) => set({ value_column: e.target.value })}>
-                    <option value="">Choose</option>
+                    <option value="">{t("Choose")}</option>
                     {tableColumns.map((c) => <option key={c} value={c}>{c}</option>)}
                   </Select>
                 </FormField>
-                <FormField label="Value meaning all rows (optional)">
-                  <Input value={cfg.all_value ?? ""} onChange={(e) => set({ all_value: e.target.value })} placeholder="e.g. * or ALL" />
+                <FormField label={t("Value meaning all rows (optional)")}>
+                  <Input value={cfg.all_value ?? ""} onChange={(e) => set({ all_value: e.target.value })} placeholder={t("e.g. * or ALL")} />
                 </FormField>
               </div>
             )}
@@ -221,19 +222,19 @@ function RuleModal({ datasetId, existing, attributes, directory, onClose }: {
         )}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={cfg.ignore_case ?? true} onChange={(e) => set({ ignore_case: e.target.checked })} />
-          Ignore upper/lower case and spaces around text
+          {t("Ignore upper/lower case and spaces around text")}
         </label>
-        <FormField label="Groups that see all rows (optional)" hint="For example Management. Admins always see all rows.">
+        <FormField label={t("Groups that see all rows (optional)")} hint={t("For example Management. Admins always see all rows.")}>
           <div className="flex flex-wrap gap-1.5">
             {exempt.map((g) => <Chip key={g} onRemove={() => setExempt(exempt.filter((x) => x !== g))}>{directory?.groups.find((x) => x.id === g)?.name ?? g}</Chip>)}
           </div>
           <Select className="mt-2" value="" onChange={(e) => e.target.value && setExempt([...exempt, Number(e.target.value)])}>
-            <option value="">Add a group…</option>
+            <option value="">{t("Add a group…")}</option>
             {directory?.groups.filter((g) => !exempt.includes(g.id)).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
           </Select>
         </FormField>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> Rule is on
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("Rule is on")}
         </label>
       </div>
     </Modal>
@@ -264,32 +265,32 @@ function CheckCard({ datasetId, directory }: { datasetId: number; directory?: Di
   const c = check.data;
   return (
     <Card className="p-5">
-      <h3 className="flex items-center gap-2 font-semibold"><Eye size={16} /> Check what someone sees</h3>
-      <p className="mt-1 text-sm text-slate-500">Choose a person to see which rules apply to them and the rows they would get.</p>
+      <h3 className="flex items-center gap-2 font-semibold"><Eye size={16} /> {t("Check what someone sees")}</h3>
+      <p className="mt-1 text-sm text-slate-500">{t("Choose a person to see which rules apply to them and the rows they would get.")}</p>
       <Select className="mt-3 max-w-md" value={userId ?? ""} onChange={(e) => setUserId(e.target.value ? Number(e.target.value) : null)}>
-        <option value="">Choose a person…</option>
+        <option value="">{t("Choose a person…")}</option>
         {directory?.users.map((u) => <option key={u.id} value={u.id}>{u.name ? `${u.name} (${u.email})` : u.email} · {u.role}</option>)}
       </Select>
       {check.error && <div className="mt-3"><Alert>{(check.error as Error).message}</Alert></div>}
       {c && (
         <div className="mt-4 space-y-3">
-          {!c.has_access && <Alert>{c.user.email} cannot use this dataset. Give them access above first.</Alert>}
+          {!c.has_access && <Alert>{t("{email} cannot use this dataset. Give them access above first.", { email: c.user.email })}</Alert>}
           {c.bypass ? (
-            <Alert tone="blue">{c.user.email} is an admin and sees every row.</Alert>
+            <Alert tone="blue">{t("{email} is an admin and sees every row.", { email: c.user.email })}</Alert>
           ) : (
             <p className="text-sm">
-              <span className="font-semibold">{c.visible_rows === null ? "—" : formatNumber(c.visible_rows)}</span> of {formatNumber(c.total_rows)} rows visible
-              {!c.rules.length && <span className="text-slate-500"> (no rules on this dataset)</span>}
+              <span className="font-semibold">{c.visible_rows === null ? "—" : formatNumber(c.visible_rows)}</span> {t("of")} {formatNumber(c.total_rows)} {t("rows visible")}
+              {!c.rules.length && <span className="text-slate-500"> {t("(no rules on this dataset)")}</span>}
             </p>
           )}
           {c.rules.map((r) => (
             <div key={`${r.rule_id}-${r.inherited_from?.id ?? 0}`} className="flex flex-wrap items-start gap-2 text-sm">
-              <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+              <Badge tone={STATUS[r.status].tone}>{t(STATUS[r.status].label)}</Badge>
               <span className="font-medium">{r.name}</span>
-              {r.inherited_from && <span className="text-xs text-slate-500">from {r.inherited_from.name}</span>}
+              {r.inherited_from && <span className="text-xs text-slate-500">{t("from {name}", { name: r.inherited_from.name })}</span>}
               {r.status === "applies" && (
                 <span className="text-slate-600">
-                  values: {r.values.slice(0, 10).map(cell).join(", ")}{r.value_count > 10 && ` and ${r.value_count - 10} more`}
+                  {t("values:")} {r.values.slice(0, 10).map(cell).join(", ")}{r.value_count > 10 && ` and ${r.value_count - 10} more`}
                 </span>
               )}
               {r.reason && <span className="text-slate-500">{r.reason}</span>}
@@ -299,11 +300,11 @@ function CheckCard({ datasetId, directory }: { datasetId: number; directory?: Di
             <div className="max-h-80 overflow-auto rounded-lg border border-slate-200">
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 bg-slate-50">
-                  <tr>{rows.data.columns.map((col) => <th key={col.key} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-600">{col.label}</th>)}</tr>
+                  <tr>{rows.data.columns.map((col) => <th key={col.key} className="whitespace-nowrap px-3 py-2 text-start text-xs font-semibold text-slate-600">{t(col.label)}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {rows.data.rows.map((r, i) => <tr key={i}>{r.map((v, j) => <td key={j} className="whitespace-nowrap px-3 py-1.5 tabular-nums">{cell(v)}</td>)}</tr>)}
-                  {!rows.data.rows.length && <tr><td className="px-3 py-4 text-center text-slate-500" colSpan={rows.data.columns.length || 1}>No rows</td></tr>}
+                  {!rows.data.rows.length && <tr><td className="px-3 py-4 text-center text-slate-500" colSpan={rows.data.columns.length || 1}>{t("No rows")}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -339,7 +340,7 @@ export default function SecurityTab({ datasetId, canEdit }: { datasetId: number;
     }
   };
   const remove = async (r: RlsRule) => {
-    if (!confirm(`Delete the rule "${r.name || r.summary}"? People it filtered may see more rows.`)) return;
+    if (!confirm(t("Delete the rule \"{v0}\"? People it filtered may see more rows.", { v0: r.name || r.summary }))) return;
     try {
       await del(`/datasets/${datasetId}/security/rules/${r.id}`);
       await refresh();
@@ -356,14 +357,14 @@ export default function SecurityTab({ datasetId, canEdit }: { datasetId: number;
       <Card className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="flex items-center gap-2 font-semibold"><Lock size={16} /> Row-level security</h3>
+            <h3 className="flex items-center gap-2 font-semibold"><Lock size={16} /> {t("Row-level security")}</h3>
             <p className="mt-1 text-sm text-slate-500">
               {total
-                ? "Everyone except admins sees only the rows these rules allow. All rules apply together. Anyone the rules cannot place (no matching value) sees no rows."
-                : "No rules: everyone who can use this dataset sees all of its rows."}
+                ? t("Everyone except admins sees only the rows these rules allow. All rules apply together. Anyone the rules cannot place (no matching value) sees no rows.")
+                : t("No rules: everyone who can use this dataset sees all of its rows.")}
             </p>
           </div>
-          {canEdit && <div className="shrink-0"><Button onClick={() => setEditing("new")}><Plus size={16} /> Add rule</Button></div>}
+          {canEdit && <div className="shrink-0"><Button onClick={() => setEditing("new")}><Plus size={16} /> {t("Add rule")}</Button></div>}
         </div>
         {error && <div className="mt-3"><Alert>{error}</Alert></div>}
         {(s.rules.length > 0 || s.inherited.length > 0) && (
@@ -375,16 +376,16 @@ export default function SecurityTab({ datasetId, canEdit }: { datasetId: number;
                   <div className="font-medium">{r.name || r.summary}</div>
                   <div className="text-xs text-slate-500">
                     {r.name && <>{r.summary} · </>}
-                    {r.kind === "attribute" ? "User attribute" : "Access table"}
-                    {r.exempt_group_names.length > 0 && <> · all rows for {r.exempt_group_names.join(", ")}</>}
+                    {r.kind === "attribute" ? t("User attribute") : t("Access table")}
+                    {r.exempt_group_names.length > 0 && <> {t("· all rows for")} {r.exempt_group_names.join(", ")}</>}
                   </div>
                 </div>
-                {!r.enabled && <Badge>Off</Badge>}
+                {!r.enabled && <Badge>{t("Off")}</Badge>}
                 {canEdit && (
                   <div className="flex gap-1">
-                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => toggle(r)}>{r.enabled ? "Turn off" : "Turn on"}</Button>
-                    <button onClick={() => setEditing(r)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Edit"><Pencil size={14} /></button>
-                    <button onClick={() => remove(r)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" aria-label="Delete"><Trash2 size={14} /></button>
+                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => toggle(r)}>{r.enabled ? t("Turn off") : t("Turn on")}</Button>
+                    <button onClick={() => setEditing(r)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" aria-label={t("Edit")}><Pencil size={14} /></button>
+                    <button onClick={() => remove(r)} className="rounded p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600" aria-label={t("Delete")}><Trash2 size={14} /></button>
                   </div>
                 )}
               </div>
@@ -394,10 +395,10 @@ export default function SecurityTab({ datasetId, canEdit }: { datasetId: number;
                 <ShieldCheck size={16} className="text-slate-400" />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{i.rule.name || i.rule.summary}</div>
-                  <div className="text-xs text-slate-500">From {i.dataset.name}, which this dataset is built from. Change it there.</div>
+                  <div className="text-xs text-slate-500">{t("From {name}, which this dataset is built from. Change it there.", { name: i.dataset.name })}</div>
                 </div>
-                {!i.mapped && <Badge tone="red">Field missing: blocks all rows</Badge>}
-                <Badge>Inherited</Badge>
+                {!i.mapped && <Badge tone="red">{t("Field missing: blocks all rows")}</Badge>}
+                <Badge>{t("Inherited")}</Badge>
               </div>
             ))}
           </div>

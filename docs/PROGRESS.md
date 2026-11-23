@@ -14,8 +14,8 @@
 | 8 | Chart builder UI | Done |
 | 9 | Dashboards UI | Done |
 | 10 | More chart types, dashboard sections, exports | Done |
-| 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Next |
-| 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | — |
+| 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Done (layout changes from the owner's testing to follow) |
+| 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | Next |
 | 13 | AI and MCP server | — |
 | 14 | Admin and hardening | — |
 
@@ -283,17 +283,72 @@ the UI must be attractive and very easy to use, with designs shown before buildi
   Browser test: uploads a map, builds a 5-section KPI dashboard with all 21 new types, checks the
   navigator (click, scroll-spy, link to a section, phone picker), exports PDF (7 pages) and PNG.
 
-## Next: milestone 11 (UI/UX redesign)
+## What exists (milestone 11)
 
-- Design first: screen designs for home, data, chart builder and dashboards in the three themes (Classic,
-  Advanced dark, Tableau-style) for the owner to choose from before building.
-- Theme system (CSS variables; per-user choice, admin default; dark chart palette selected for the dark
-  surface), Arabic + English with RTL, workspaces with permissions, Hijri calendar / UAE weekend / fiscal
-  year settings, TV/kiosk and presentation modes.
+- Designs first: a design canvas with home, the KPI dashboard and the chart builder in the three themes, plus
+  the dashboard in Arabic. The owner chose **Classic** as the default; layout changes will follow their testing.
+- Themes (`frontend/src/index.css`): every screen uses the slate / brand / status scales, and each theme
+  redefines them as CSS variables on `<html data-theme>`: **Classic** (light, roomy), **Advanced** (dark,
+  Space Grotesk headings, larger numbers), **Analyst** (Tableau-style: IBM Plex Sans, square corners, denser
+  14px base, solid blue/green field pills; no Tableau names or assets). Fonts are bundled (`@fontsource`), so
+  nothing is loaded from the internet. Charts follow the theme (`applyChartTheme` in `lib/chart/palette.ts`):
+  the dark theme uses the documented dark steps of the same eight hues, validated on the dark surface #141922
+  (worst adjacent CVD ΔE 8.4, normal-vision 19.3, all ≥ 3:1), and dark ink, grid, tooltip and map colours.
+- Preferences and settings: `users.preferences` (theme, language, calendar) and `app_settings` (key
+  `regional`: default theme and language, calendar display, week start, weekend, fiscal year start). API
+  `GET /settings` (everyone: organisation settings + their effective look), `PUT /admin/settings/regional`
+  (admins, audited), `PUT /me/preferences`. Migration `0009`. Screens: My account → Appearance (theme cards,
+  language, calendar; "use the organisation's default"), Admin → Settings. The look is applied before the
+  first paint from the last one used in the browser, then from the server.
+- Arabic and right to left: `t()` (`lib/i18n`) looks texts up by their English wording; `ar.ts` holds about
+  1,070 Arabic translations covering every screen; `dir="rtl"`, logical CSS (start/end instead of left/right),
+  mirrored icons that point, IBM Plex Sans Arabic, Western digits (as used in the UAE), Arabic month and day
+  names in charts. The dashboard grid is mirrored in Arabic. Fixed error messages from the server are
+  translated too. The sign-in page has a language switch.
+- Calendar: Hijri dates (Umm al-Qura) shown instead of or beside Gregorian dates (lists, filters, day labels
+  in charts, the home page). Query engine: new date levels `fiscal_year` / `fiscal_quarter` (grain and part),
+  relative filters for fiscal quarters and years, and weeks that start on the organisation's first day of the
+  week. Fiscal years are named by the year they end in (July 2026 – June 2027 = FY2027). Calendar charts
+  start the week on that day and shade the weekend. New date presets: this week, this fiscal quarter, this
+  fiscal year, last 2 fiscal years.
+- Workspaces: `workspaces` and `workspace_members` (users or groups as viewer / editor / manager), and
+  `workspace_id` on dashboards and charts (empty = personal). Admins create and delete workspaces (items go back
+  to their owners); managers rename them and manage members (cannot remove their own manager role). Roles
+  give dashboard and chart levels view / edit / manage, combined with sharing (the best wins); people with
+  the Viewer role are always viewers. Membership never gives dataset access: charts still run with each
+  person's row-level security. API `app/api/v1/workspaces.py`, `PUT /dashboards/{id}/workspace`,
+  `PUT /charts/{id}/workspace`, `workspace_id` on create and as a list filter (0 = personal). Audited.
+  Screens: workspace picker in the side menu (filters home, dashboards and charts; new items go into the
+  picked workspace), Workspaces page with members, "Move to a workspace" on dashboards and charts.
+- Redesign: new side menu (workspace picker, admin section, account card; phone drawer), home (search across
+  dashboards, charts and datasets with Ctrl K, greeting with the date, quick actions, favourite dashboards with
+  a small picture of their layout, recent items, data health, workspaces), dashboard header (breadcrumb, data
+  freshness, Present, TV mode, Export, Share, More), filters in a card, KPI section headers, section navigator
+  card, chart builder toolbar with one Export menu.
+- Presentation and TV modes (`pages/dashboards/Stage.tsx`): one section (or tab) per slide, sized to fill the
+  screen. Presentation: arrow keys / space / buttons, Esc to leave. TV: `?tv=1&cycle=30&refresh=5` moves on by
+  itself, refreshes the data, shows a clock and when the data was refreshed, larger text, hides the controls
+  and pointer when idle, full screen button.
+- Tests: 337 backend tests (`test_settings.py`: defaults, admin-only changes, validation, preferences
+  overriding defaults, fiscal year / quarter grains and parts, week start Monday / Sunday / Saturday,
+  relative fiscal periods; `test_workspaces.py`: who creates workspaces, roles shown, dashboard and chart
+  access by role, Viewer role capped, row-level security unchanged for members, moving, creating directly in a
+  workspace, member management and lock-out guard, deleting a workspace keeps items, deleted groups leave).
+  Browser test: home, KPI dashboard and chart builder in all three themes, Arabic in Classic and Advanced,
+  presentation (3 slides, keys, Esc) and TV mode (moves on by itself), settings and account pages.
+- Not done: Hijri date levels in charts (months that follow the Hijri calendar) need a Hijri calendar table in
+  the engine; dates are shown in Hijri, grouping stays Gregorian. TV mode uses a signed-in session (a "TV"
+  user with the Viewer role works); sign-in-free screens come with signed embedding in milestone 12.
+
+## Next: milestone 12
+
+- Per-recipient email subscriptions, data-driven alerts, Teams / email / WhatsApp notifications, signed
+  embedding (also for TV screens without a session), comments and chart annotations, column masking (PII),
+  KPI goals and scorecards (status in section headers and in the navigator), data quality and freshness
+  checks, versions (last 2 kept) with roll back.
 
 ## Open questions for the owner
 
 - Self-hosted AI: is there (or will there be) a GPU server to run the local model?
 - Hosting: on-premise or UAE cloud region?
-- Arabic interface from day one?
 - First Salesforce objects and Oracle schemas?

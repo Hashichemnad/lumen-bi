@@ -5,20 +5,28 @@ import { useEffect, useState } from "react";
 
 import { Input, Select } from "../../components/ui";
 import { get } from "../../lib/api";
+import type { DateUnit } from "../../lib/chart/types";
+import { calendarDisplay, hijriDay } from "../../lib/dates";
 import { describeValue, isActive } from "../../lib/dashboard/filters";
+import { t } from "../../lib/i18n";
 import type { Dashboard, DashFilter, DateValue, FilterValue } from "../../lib/dashboard/types";
 
+const rel = (unit: DateUnit, n: number): DateValue => ({ mode: "relative", unit, n });
 export const DATE_PRESETS: { label: string; value: DateValue | null }[] = [
   { label: "All dates", value: null },
-  { label: "Today", value: { mode: "relative", unit: "day", n: 1 } },
-  { label: "Last 7 days", value: { mode: "relative", unit: "day", n: 7 } },
-  { label: "Last 30 days", value: { mode: "relative", unit: "day", n: 30 } },
-  { label: "Last 90 days", value: { mode: "relative", unit: "day", n: 90 } },
-  { label: "This month", value: { mode: "relative", unit: "month", n: 1 } },
-  { label: "Last 3 months", value: { mode: "relative", unit: "month", n: 3 } },
-  { label: "Last 12 months", value: { mode: "relative", unit: "month", n: 12 } },
-  { label: "This quarter", value: { mode: "relative", unit: "quarter", n: 1 } },
-  { label: "This year", value: { mode: "relative", unit: "year", n: 1 } },
+  { label: "Today", value: rel("day", 1) },
+  { label: "Last 7 days", value: rel("day", 7) },
+  { label: "Last 30 days", value: rel("day", 30) },
+  { label: "Last 90 days", value: rel("day", 90) },
+  { label: "This week", value: rel("week", 1) },
+  { label: "This month", value: rel("month", 1) },
+  { label: "Last 3 months", value: rel("month", 3) },
+  { label: "Last 12 months", value: rel("month", 12) },
+  { label: "This quarter", value: rel("quarter", 1) },
+  { label: "This year", value: rel("year", 1) },
+  { label: "This fiscal quarter", value: rel("fiscal_quarter", 1) },
+  { label: "This fiscal year", value: rel("fiscal_year", 1) },
+  { label: "Last 2 fiscal years", value: rel("fiscal_year", 2) },
 ];
 
 function useValues(dash: Dashboard, f: DashFilter, search: string, enabled: boolean) {
@@ -51,7 +59,7 @@ function MultiControl({ dash, f, value, onChange }: { dash: Dashboard; f: DashFi
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute z-40 mt-1 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-            <Input autoFocus placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} className="py-1.5" />
+            <Input autoFocus placeholder={t("Search")} value={search} onChange={(e) => setSearch(e.target.value)} className="py-1.5" />
             <div className="mt-2 max-h-64 overflow-y-auto">
               {values.data?.values.map((v) => (
                 <label key={JSON.stringify(v)} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50">
@@ -59,11 +67,11 @@ function MultiControl({ dash, f, value, onChange }: { dash: Dashboard; f: DashFi
                   <span className="truncate">{label(v)}</span>
                 </label>
               ))}
-              {values.data && !values.data.values.length && <p className="p-2 text-sm text-slate-500">No values</p>}
+              {values.data && !values.data.values.length && <p className="p-2 text-sm text-slate-500">{t("No values")}</p>}
             </div>
             <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-xs">
-              <button className="text-slate-600 hover:underline" onClick={() => onChange([])}>Clear</button>
-              <button className="font-medium text-brand-700 hover:underline" onClick={() => setOpen(false)}>Done</button>
+              <button className="text-slate-600 hover:underline" onClick={() => onChange([])}>{t("Clear")}</button>
+              <button className="font-medium text-brand-700 hover:underline" onClick={() => setOpen(false)}>{t("Done")}</button>
             </div>
           </div>
         </>
@@ -78,7 +86,7 @@ function DropdownControl({ dash, f, value, onChange }: { dash: Dashboard; f: Das
   return (
     <div className="w-44">
       <Select className="h-9 py-1" value={current} onChange={(e) => onChange(e.target.value ? [JSON.parse(e.target.value)] : [])}>
-        <option value="">All</option>
+        <option value="">{t("All")}</option>
         {values.data?.values.map((v) => <option key={JSON.stringify(v)} value={JSON.stringify(v)}>{label(v)}</option>)}
       </Select>
     </div>
@@ -92,7 +100,7 @@ function SearchControl({ value, onChange }: { value: string; onChange: (v: strin
     const t = setTimeout(() => text !== value && onChange(text), 400);
     return () => clearTimeout(t);
   }, [text, value, onChange]);
-  return <Input className="h-9 w-44 py-1" placeholder="Contains…" value={text} onChange={(e) => setText(e.target.value)} />;
+  return <Input className="h-9 w-44 py-1" placeholder={t("Contains…")} value={text} onChange={(e) => setText(e.target.value)} />;
 }
 
 function DateControl({ value, onChange }: { value: DateValue | null; onChange: (v: DateValue | null) => void }) {
@@ -103,14 +111,20 @@ function DateControl({ value, onChange }: { value: DateValue | null; onChange: (
       <div className="w-40">
         <Select className="h-9 py-1" value={custom ? "custom" : preset >= 0 ? String(preset) : "0"}
           onChange={(e) => onChange(e.target.value === "custom" ? { mode: "range", from: null, to: null } : DATE_PRESETS[Number(e.target.value)].value)}>
-          {DATE_PRESETS.map((p, i) => <option key={p.label} value={i}>{p.label}</option>)}
-          <option value="custom">Custom range…</option>
+          {DATE_PRESETS.map((p, i) => <option key={p.label} value={i}>{t(p.label)}</option>)}
+          <option value="custom">{t("Custom range…")}</option>
         </Select>
       </div>
       {custom && (
         <>
-          <Input type="date" className="h-9 w-36 py-1" value={value.from ?? ""} onChange={(e) => onChange({ ...value, from: e.target.value || null })} aria-label="From" />
-          <Input type="date" className="h-9 w-36 py-1" value={value.to ?? ""} onChange={(e) => onChange({ ...value, to: e.target.value || null })} aria-label="To" />
+          <span className="flex flex-col">
+            <Input type="date" className="h-9 w-36 py-1" value={value.from ?? ""} onChange={(e) => onChange({ ...value, from: e.target.value || null })} aria-label={t("From")} />
+            {value.from && calendarDisplay() !== "gregorian" && <span className="mt-0.5 text-[11px] text-slate-500">{hijriDay(value.from)}</span>}
+          </span>
+          <span className="flex flex-col">
+            <Input type="date" className="h-9 w-36 py-1" value={value.to ?? ""} onChange={(e) => onChange({ ...value, to: e.target.value || null })} aria-label={t("To")} />
+            {value.to && calendarDisplay() !== "gregorian" && <span className="mt-0.5 text-[11px] text-slate-500">{hijriDay(value.to)}</span>}
+          </span>
         </>
       )}
     </div>
@@ -122,9 +136,9 @@ function RangeControl({ value, onChange }: { value: { min: number | null; max: n
   const num = (s: string) => (s === "" ? null : Number(s));
   return (
     <div className="flex items-center gap-1">
-      <Input type="number" className="h-9 w-24 py-1" placeholder="Min" value={v.min ?? ""} onChange={(e) => onChange({ ...v, min: num(e.target.value) })} aria-label="Minimum" />
+      <Input type="number" className="h-9 w-24 py-1" placeholder={t("Min")} value={v.min ?? ""} onChange={(e) => onChange({ ...v, min: num(e.target.value) })} aria-label={t("Minimum")} />
       <span className="text-slate-400">–</span>
-      <Input type="number" className="h-9 w-24 py-1" placeholder="Max" value={v.max ?? ""} onChange={(e) => onChange({ ...v, max: num(e.target.value) })} aria-label="Maximum" />
+      <Input type="number" className="h-9 w-24 py-1" placeholder={t("Max")} value={v.max ?? ""} onChange={(e) => onChange({ ...v, max: num(e.target.value) })} aria-label={t("Maximum")} />
     </div>
   );
 }
@@ -157,16 +171,16 @@ export default function FilterBar({ dash, filters, values, onChange, params, onP
   const changed = filters.some((f) => JSON.stringify(values[f.id] ?? null) !== JSON.stringify(f.value ?? null)) || Object.keys(params).length > 0 || !!cross;
   if (!filters.length && !paramControls.length && !cross) return null;
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-3">
+    <div role="group" aria-label={t("Filters")} className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       {filters.map((f) => (
         <div key={f.id}>
-          <div className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
-            {f.label}
+          <div className="mb-1 flex items-center gap-1 text-xs font-medium text-slate-500">
+            {t(f.label)}
             {isActive(f, values[f.id] ?? null) && <Check size={12} className="text-brand-600" />}
             {editing && (
               <>
-                <button onClick={() => onEditFilter(f)} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label={`Edit filter ${f.label}`}><Pencil size={11} /></button>
-                <button onClick={() => onRemoveFilter(f)} className="rounded p-0.5 text-slate-400 hover:text-red-600" aria-label={`Remove filter ${f.label}`}><X size={11} /></button>
+                <button onClick={() => onEditFilter(f)} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label={t("Edit filter {label}", { label: f.label })}><Pencil size={11} /></button>
+                <button onClick={() => onRemoveFilter(f)} className="rounded p-0.5 text-slate-400 hover:text-red-600" aria-label={t("Remove filter {label}", { label: f.label })}><X size={11} /></button>
               </>
             )}
           </div>
@@ -193,12 +207,12 @@ export default function FilterBar({ dash, filters, values, onChange, params, onP
       })}
       {cross && (
         <span className="mb-1 inline-flex h-7 items-center gap-1 rounded-full bg-brand-50 px-3 text-xs text-brand-800">
-          Filtered by {cross.label}
-          <button onClick={onClearCross} aria-label="Clear the chart filter"><X size={12} /></button>
+          {t("Filtered by")} {t(cross.label)}
+          <button onClick={onClearCross} aria-label={t("Clear the chart filter")}><X size={12} /></button>
         </span>
       )}
       {changed && (
-        <button onClick={onReset} className="mb-1 inline-flex h-7 items-center gap-1 rounded-full px-2 text-xs text-slate-600 hover:bg-slate-100"><RotateCcw size={12} /> Reset</button>
+        <button onClick={onReset} className="ms-auto inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-brand-700 hover:bg-brand-50"><RotateCcw size={14} /> {t("Reset")}</button>
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import CombineModal from "./CombineModal";
 import DatasetForm from "./DatasetForm";
 import ModelTab from "./ModelTab";
 import SecurityTab from "./SecurityTab";
+import { t as tr } from "../../lib/i18n";
 
 function cell(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -68,11 +69,11 @@ export default function DatasetPage() {
       await qc.invalidateQueries({ queryKey: ["dataset", id] });
       await qc.invalidateQueries({ queryKey: ["runs", id] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start the sync");
+      setError(err instanceof Error ? err.message : tr("Could not start the sync"));
     }
   };
   const remove = async () => {
-    if (!confirm(`Delete dataset "${d.name}" and its data copy?`)) return;
+    if (!confirm(tr("Delete dataset \"{name}\" and its data copy?", { name: d.name }))) return;
     await del(`/datasets/${d.id}`);
     await qc.invalidateQueries({ queryKey: ["datasets"] });
     navigate("/data");
@@ -80,26 +81,26 @@ export default function DatasetPage() {
 
   return (
     <>
-      <Link to="/data" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ArrowLeft size={14} /> Data</Link>
+      <Link to="/data" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ArrowLeft size={14} /> {tr("Data")}</Link>
       <PageHeader title={d.name} description={d.description || undefined}
         actions={<>
           <Button onClick={syncNow} disabled={!!d.active_run}>
-            <RefreshCw size={16} className={d.active_run ? "animate-spin" : ""} /> {d.active_run ? "Syncing…" : "Sync now"}
+            <RefreshCw size={16} className={d.active_run ? "animate-spin" : ""} /> {d.active_run ? tr("Syncing…") : tr("Sync now")}
           </Button>
-          {canEdit && <Button variant="secondary" onClick={() => setEditing(true)} disabled={d.kind === "source" && !conn.data}>Settings</Button>}
-          {canEdit && <Button variant="danger" onClick={remove}>Delete</Button>}
+          {canEdit && <Button variant="secondary" onClick={() => setEditing(true)} disabled={d.kind === "source" && !conn.data}>{tr("Settings")}</Button>}
+          {canEdit && <Button variant="danger" onClick={remove}>{tr("Delete")}</Button>}
         </>} />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       {d.last_status === "failed" && lastRun?.status === "failed" && !d.active_run && (
-        <div className="mb-4"><Alert>The last sync failed: {lastRun.error}{d.current_version ? " The previous data is still in use." : ""}</Alert></div>
+        <div className="mb-4"><Alert>{tr("The last sync failed: {error}", { error: lastRun.error })}{d.current_version ? ` ${tr("The previous data is still in use.")}` : ""}</Alert></div>
       )}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-4">
         {[
-          ["Status", <StatusBadge key="s" dataset={d} />],
-          ["Rows", d.current_version ? formatNumber(d.row_count) : "—"],
-          ["Last synced", formatDate(d.last_synced_at)],
-          ["Refresh", <span key="r">{describeSchedule(d.schedule)}{d.next_run_at && <span className="block text-xs text-slate-500">next {formatDate(d.next_run_at)}</span>}</span>],
+          [tr("Status"), <StatusBadge key="s" dataset={d} />],
+          [tr("Rows"), d.current_version ? formatNumber(d.row_count) : "—"],
+          [tr("Last synced"), formatDate(d.last_synced_at)],
+          [tr("Refresh"), <span key="r">{describeSchedule(d.schedule)}{d.next_run_at && <span className="block text-xs text-slate-500">{tr("next {v0}", { v0: formatDate(d.next_run_at) })}</span>}</span>],
         ].map(([label, value]) => (
           <Card key={String(label)} className="p-4">
             <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
@@ -109,19 +110,19 @@ export default function DatasetPage() {
       </div>
       {d.kind === "source" ? (
         <p className="mb-4 text-sm text-slate-600">
-          From <Link className="text-brand-600 hover:underline" to={`/data/connections/${d.connection_id}`}>{d.connection_name}</Link>
-          {" · "}{sourceLabel(d)}{" · "}{d.sync_mode === "incremental" ? `incremental by ${d.incremental_column}${d.primary_key.length ? `, key ${d.primary_key.join(" + ")}` : ""}` : "full refresh"}
+          {tr("From")} <Link className="text-brand-600 hover:underline" to={`/data/connections/${d.connection_id}`}>{d.connection_name}</Link>
+          {" · "}{sourceLabel(d)}{" · "}{d.sync_mode === "incremental" ? `incremental by ${d.incremental_column}${d.primary_key.length ? `, key ${d.primary_key.join(" + ")}` : ""}` : tr("full refresh")}
         </p>
       ) : (
         <p className="mb-4 text-sm text-slate-600">
-          {d.kind === "join" ? "Join of " : "Union of "}
+          {d.kind === "join" ? tr("Join of ") : tr("Union of ")}
           {d.parents.map((p, i) => <span key={p.id}>{i > 0 && (d.kind === "join" ? " + " : ", ")}
             <Link className="text-brand-600 hover:underline" to={`/data/datasets/${p.id}`}>{p.name}</Link></span>)}
           {" · rebuilt automatically when any of them syncs"}
         </p>
       )}
       {d.dependents.length > 0 && (
-        <p className="-mt-2 mb-4 text-sm text-slate-600">Used by {d.dependents.map((x, i) => <span key={x.id}>{i > 0 && ", "}
+        <p className="-mt-2 mb-4 text-sm text-slate-600">{tr("Used by")} {d.dependents.map((x, i) => <span key={x.id}>{i > 0 && ", "}
           <Link className="text-brand-600 hover:underline" to={`/data/datasets/${x.id}`}>{x.name}</Link></span>)}</p>
       )}
       {d.source.sql && <pre className="mb-4 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs">{d.source.sql}</pre>}
@@ -131,7 +132,7 @@ export default function DatasetPage() {
           <button key={t} onClick={() => setTab(t)}
             className={clsx("-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize",
               tab === t ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-700")}>
-            {t === "history" ? "Sync history" : t}
+            {t === "history" ? tr("Sync history") : tr({ preview: "Preview", model: "Model", security: "Security" }[t])}
           </button>
         ))}
       </div>
@@ -139,18 +140,18 @@ export default function DatasetPage() {
       {tab === "preview" && (
         <Card>
           {!d.current_version ? (
-            <p className="p-6 text-center text-sm text-slate-500">{d.active_run ? "Syncing… the preview appears when it finishes." : "No data yet. Run a sync."}</p>
+            <p className="p-6 text-center text-sm text-slate-500">{d.active_run ? tr("Syncing… the preview appears when it finishes.") : tr("No data yet. Run a sync.")}</p>
           ) : (
             <>
               {preview.data?.restricted && (
                 <p className="border-b border-slate-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-                  Row-level security applies to you: only the rows you may see are shown.
+                  {tr("Row-level security applies to you: only the rows you may see are shown.")}
                 </p>
               )}
               <div className="max-h-[480px] overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-slate-50">
-                    <tr>{preview.data?.columns.map((c) => <th key={c} className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold text-slate-600">{c}</th>)}</tr>
+                    <tr>{preview.data?.columns.map((c) => <th key={c} className="whitespace-nowrap px-3 py-2 text-start text-xs font-semibold text-slate-600">{c}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {preview.data?.rows.map((r, i) => (
@@ -160,7 +161,7 @@ export default function DatasetPage() {
                 </table>
               </div>
               <p className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-                First {preview.data?.rows.length ?? 0} of {formatNumber(d.row_count)} rows · version {version}
+                {tr("First")} {preview.data?.rows.length ?? 0} {tr("of")} {formatNumber(d.row_count)} {tr("rows · version")} {version}
               </p>
             </>
           )}
@@ -173,7 +174,7 @@ export default function DatasetPage() {
 
       {tab === "history" && (
         <Card>
-          <Table head={["Started", "Trigger", "Mode", "Status", "Rows", "Time", "Details"]}>
+          <Table head={[tr("Started"), tr("Trigger"), tr("Mode"), tr("Status"), tr("Rows"), tr("Time"), tr("Details")]}>
             {runs.data?.map((r) => (
               <tr key={r.id}>
                 <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{formatDate(r.started_at ?? r.created_at)}</td>
@@ -181,7 +182,7 @@ export default function DatasetPage() {
                 <td className="px-4 py-2.5">{r.mode}</td>
                 <td className="px-4 py-2.5"><RunBadge run={r} /></td>
                 <td className="px-4 py-2.5 tabular-nums">
-                  {r.status === "success" ? <>{formatNumber(r.rows_total)}{r.mode === "incremental" && <span className="text-xs text-slate-500"> (+{formatNumber(r.rows_read)} read)</span>}</> : "—"}
+                  {r.status === "success" ? <>{formatNumber(r.rows_total)}{r.mode === "incremental" && <span className="text-xs text-slate-500">{tr("(+{v0} read)", { v0: formatNumber(r.rows_read) })}</span>}</> : "—"}
                 </td>
                 <td className="px-4 py-2.5 text-slate-500">{duration(r)}</td>
                 <td className="px-4 py-2.5 text-xs">

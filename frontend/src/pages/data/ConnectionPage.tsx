@@ -11,6 +11,7 @@ import { CONNECTION_LABELS, StatusBadge, formatBytes, formatNumber, sourceLabel 
 import { RestConnectionModal, SalesforceConnectionModal } from "./ApiConnectionForms";
 import { DatabaseConnectionModal, UploadModal } from "./ConnectionForms";
 import DatasetForm from "./DatasetForm";
+import { t } from "../../lib/i18n";
 
 export default function ConnectionPage() {
   const id = Number(useParams().id);
@@ -34,7 +35,7 @@ export default function ConnectionPage() {
   const used = new Set(datasets.data?.map((d) => d.source.object).filter(Boolean));
 
   const remove = async () => {
-    if (!confirm(`Delete "${c.name}" and its ${c.dataset_count} dataset(s)? Their data copies are deleted too.`)) return;
+    if (!confirm(t("Delete \"{name}\" and its {dataset_count} dataset(s)? Their data copies are deleted too.", { name: c.name, dataset_count: c.dataset_count }))) return;
     await del(`/connections/${c.id}`);
     await qc.invalidateQueries({ queryKey: ["connections"] });
     await qc.invalidateQueries({ queryKey: ["datasets"] });
@@ -43,16 +44,16 @@ export default function ConnectionPage() {
 
   return (
     <>
-      <Link to="/data" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ArrowLeft size={14} /> Data</Link>
-      <PageHeader title={c.name} description={`${CONNECTION_LABELS[c.type] ?? c.type} · added by ${c.owner_name || "—"}`}
+      <Link to="/data" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"><ArrowLeft size={14} /> {t("Data")}</Link>
+      <PageHeader title={c.name} description={t("{v0} · added by {v1}", { v0: t(CONNECTION_LABELS[c.type] ?? c.type), v1: c.owner_name || "—" })}
         actions={canEdit ? <>
           {c.type !== "file" && (
-            <Button variant="secondary" onClick={async () => setTest(await post(`/connections/${c.id}/test`))}>Test connection</Button>
+            <Button variant="secondary" onClick={async () => setTest(await post(`/connections/${c.id}/test`))}>{t("Test connection")}</Button>
           )}
           {c.type === "file"
-            ? <Button variant="secondary" onClick={() => setEditing(true)}>Replace file</Button>
-            : <Button variant="secondary" onClick={() => setEditing(true)}>Edit</Button>}
-          <Button variant="danger" onClick={remove}>Delete</Button>
+            ? <Button variant="secondary" onClick={() => setEditing(true)}>{t("Replace file")}</Button>
+            : <Button variant="secondary" onClick={() => setEditing(true)}>{t("Edit")}</Button>}
+          <Button variant="danger" onClick={remove}>{t("Delete")}</Button>
         </> : undefined} />
 
       {test && (
@@ -64,33 +65,33 @@ export default function ConnectionPage() {
       <Card className="mb-6 p-5">
         <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
           {c.type === "file" ? <>
-            <div className="flex justify-between"><dt className="text-slate-500">File</dt><dd>{String(cfg.filename)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Size</dt><dd>{formatBytes(Number(cfg.size ?? 0))}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Uploaded</dt><dd>{formatDate(String(cfg.uploaded_at ?? ""))}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("File")}</dt><dd>{String(cfg.filename)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Size")}</dt><dd>{formatBytes(Number(cfg.size ?? 0))}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Uploaded")}</dt><dd>{formatDate(String(cfg.uploaded_at ?? ""))}</dd></div>
           </> : c.type === "salesforce" ? <>
-            <div className="flex justify-between"><dt className="text-slate-500">Org</dt><dd>{String(cfg.domain_url)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Sign-in</dt><dd>{cfg.auth === "jwt" ? `JWT bearer as ${String(cfg.username)}` : "Client credentials"}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">API version</dt><dd>{String(cfg.api_version || "newest")}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Bulk API from</dt><dd>{Number(cfg.bulk_threshold).toLocaleString()} rows</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Org")}</dt><dd>{String(cfg.domain_url)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Sign-in")}</dt><dd>{cfg.auth === "jwt" ? `JWT bearer as ${String(cfg.username)}` : t("Client credentials")}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("API version")}</dt><dd>{String(cfg.api_version || "newest")}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Bulk API from")}</dt><dd>{t("{v0} rows", { v0: Number(cfg.bulk_threshold).toLocaleString() })}</dd></div>
           </> : c.type === "rest" ? <>
-            <div className="flex justify-between"><dt className="text-slate-500">Base URL</dt><dd>{String(cfg.base_url)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Sign-in</dt><dd>{String(cfg.auth)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Pages</dt><dd>{String(cfg.pagination)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Incremental</dt><dd>{cfg.since_param ? `by ${String(cfg.since_param)}` : "not set up"}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Base URL")}</dt><dd>{String(cfg.base_url)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Sign-in")}</dt><dd>{String(cfg.auth)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Pages")}</dt><dd>{String(cfg.pagination)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Incremental")}</dt><dd>{cfg.since_param ? `by ${String(cfg.since_param)}` : t("not set up")}</dd></div>
           </> : <>
-            <div className="flex justify-between"><dt className="text-slate-500">Host</dt><dd>{String(cfg.host)}:{String(cfg.port)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">{c.type === "oracle" ? (cfg.sid ? "SID" : "Service") : "Database"}</dt>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Host")}</dt><dd>{String(cfg.host)}:{String(cfg.port)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{c.type === "oracle" ? (cfg.sid ? "SID" : t("Service")) : t("Database")}</dt>
               <dd>{String(c.type === "oracle" ? cfg.sid || cfg.service_name : cfg.database)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">User</dt><dd>{String(cfg.user)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Schemas</dt>
-              <dd>{Array.isArray(cfg.schemas) && cfg.schemas.length ? cfg.schemas.join(", ") : "user's own"}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("User")}</dt><dd>{String(cfg.user)}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t("Schemas")}</dt>
+              <dd>{Array.isArray(cfg.schemas) && cfg.schemas.length ? cfg.schemas.join(", ") : t("user's own")}</dd></div>
           </>}
         </dl>
       </Card>
 
-      <h2 className="mb-3 text-lg font-semibold">Datasets from this connection</h2>
+      <h2 className="mb-3 text-lg font-semibold">{t("Datasets from this connection")}</h2>
       <Card className="mb-8">
-        <Table head={["Dataset", "Source", "Rows", "Status"]}>
+        <Table head={[t("Dataset"), t("Source"), t("Rows"), t("Status")]}>
           {datasets.data?.map((d) => (
             <tr key={d.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/data/datasets/${d.id}`)}>
               <td className="px-4 py-3 font-medium">{d.name}</td>
@@ -100,18 +101,18 @@ export default function ConnectionPage() {
             </tr>
           ))}
         </Table>
-        {datasets.data?.length === 0 && <p className="p-6 text-center text-sm text-slate-500">None yet. Pick a table below.</p>}
+        {datasets.data?.length === 0 && <p className="p-6 text-center text-sm text-slate-500">{t("None yet. Pick a table below.")}</p>}
       </Card>
 
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{{ file: "Sheets", salesforce: "Objects", rest: "Endpoints" }[c.type] ?? "Tables and views"}</h2>
+        <h2 className="text-lg font-semibold">{{ file: "Sheets", salesforce: "Objects", rest: "Endpoints" }[c.type] ?? t("Tables and views")}</h2>
         {["oracle", "postgres", "salesforce"].includes(c.type) && (
-          <Button variant="secondary" size="sm" onClick={() => setNewDataset("")}><Plus size={14} /> Dataset from {c.type === "salesforce" ? "SOQL" : "SQL"} query</Button>
+          <Button variant="secondary" size="sm" onClick={() => setNewDataset("")}><Plus size={14} /> {t("Dataset from")} {c.type === "salesforce" ? "SOQL" : "SQL"} {t("query")}</Button>
         )}
       </div>
       <Card>
         {objects.error && <div className="p-4"><Alert>{(objects.error as Error).message}</Alert></div>}
-        {objects.isLoading && <p className="p-4 text-sm text-slate-500">Loading…</p>}
+        {objects.isLoading && <p className="p-4 text-sm text-slate-500">{t("Loading…")}</p>}
         <ul className="divide-y divide-slate-100">
           {objects.data?.map((o) => (
             <li key={o.name} className="flex items-center justify-between px-4 py-2.5 text-sm">
@@ -119,8 +120,8 @@ export default function ConnectionPage() {
                 <span className={o.label && o.label !== o.name ? "font-mono text-xs text-slate-500" : "font-medium"}>{o.name}</span>{" "}
                 <span className="text-slate-500">{o.kind}</span></span>
               {used.has(o.name)
-                ? <span className="text-xs text-slate-500">already a dataset</span>
-                : <Button variant="ghost" size="sm" onClick={() => setNewDataset(o.name)}><Plus size={14} /> Create dataset</Button>}
+                ? <span className="text-xs text-slate-500">{t("already a dataset")}</span>
+                : <Button variant="ghost" size="sm" onClick={() => setNewDataset(o.name)}><Plus size={14} /> {t("Create dataset")}</Button>}
             </li>
           ))}
         </ul>

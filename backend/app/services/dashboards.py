@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Chart, Dashboard, DashboardShare, Dataset, Hierarchy, Role, User
 from app.query.spec import Filter, QuerySpec
+from app.services import workspaces
 
 MAX_CONFIG_BYTES = 500_000
 ITEM_KINDS = {"chart", "text", "image", "web", "section"}
@@ -31,8 +32,11 @@ class DashboardError(Exception):
 
 # ------------------------------------------------------------------ permissions
 def share_level(db: Session, user: User, dash: Dashboard) -> str | None:
-    """'manage' (owner/admin), 'edit', 'view' or None."""
+    """'manage' (owner/admin/workspace manager), 'edit', 'view' or None."""
     if user.has_role(Role.admin) or dash.owner_id == user.id:
+        return "manage"
+    from_workspace = workspaces.level_in(db, user, dash.workspace_id)
+    if from_workspace == "manage":
         return "manage"
     group_ids = {g.id for g in user.groups}
     best = None
@@ -47,7 +51,14 @@ def share_level(db: Session, user: User, dash: Dashboard) -> str | None:
     # Viewers can never edit, whatever they were given
     if best == "edit" and not user.has_role(Role.explorer):
         best = "view"
-    return best
+    return workspaces.best_level(best, from_workspace)
+
+
+def chart_level(db: Session, user: User, chart: Chart) -> str | None:
+    """'manage' (owner/admin/workspace manager), 'edit' (workspace editor), 'view' (workspace viewer)."""
+    if user.has_role(Role.admin) or chart.owner_id == user.id:
+        return "manage"
+    return workspaces.level_in(db, user, chart.workspace_id)
 
 
 def can_edit(level: str | None) -> bool:
@@ -171,13 +182,14 @@ def validate_config(db: Session, user: User, config: dict, previous: dict | None
             "phone_layout": bool(options.get("phone_layout", False)),
         },
     }
-    # Charts newly placed on the dashboard must be ones this person can open themselves
+    # Charts newly placed on the dashboard must be ones this person can open themselves (their own, or in a
+    # workspace they belong to)
     before = chart_ids(previous or {})
     for cid in chart_ids(clean_config) - before:
         chart = db.get(Chart, cid)
         if chart is None:
             raise DashboardError("One of the charts no longer exists")
-        if not (user.has_role(Role.admin) or chart.owner_id == user.id):
+        if chart_level(db, user, chart) is None:
             raise DashboardError(f'You cannot add the chart "{chart.name}"', 403)
     for cid in chart_ids(clean_config) & before:
         if db.get(Chart, cid) is None:

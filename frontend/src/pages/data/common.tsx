@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Badge } from "../../components/ui";
 import { get } from "../../lib/api";
 import type { Dataset, SyncRun } from "../../lib/types";
+import { t } from "../../lib/i18n";
 
 export const CONNECTION_ICONS: Record<string, ReactNode> = {
   file: <FileSpreadsheet size={20} />,
@@ -31,10 +32,10 @@ export function useDataSettings() {
 }
 
 export function StatusBadge({ dataset }: { dataset: Pick<Dataset, "last_status" | "active_run"> }) {
-  if (dataset.active_run) return <Badge tone="blue">{dataset.active_run.status === "queued" ? "Queued" : "Syncing…"}</Badge>;
-  if (dataset.last_status === "success") return <Badge tone="green">Up to date</Badge>;
-  if (dataset.last_status === "failed") return <Badge tone="red">Last sync failed</Badge>;
-  return <Badge>Not synced</Badge>;
+  if (dataset.active_run) return <Badge tone="blue">{dataset.active_run.status === "queued" ? t("Queued") : t("Syncing…")}</Badge>;
+  if (dataset.last_status === "success") return <Badge tone="green">{t("Up to date")}</Badge>;
+  if (dataset.last_status === "failed") return <Badge tone="red">{t("Last sync failed")}</Badge>;
+  return <Badge>{t("Not synced")}</Badge>;
 }
 
 export function RunBadge({ run }: { run: SyncRun }) {
@@ -53,9 +54,9 @@ export function formatBytes(n: number): string {
 }
 
 export function sourceLabel(d: Pick<Dataset, "source" | "kind" | "parents">): string {
-  if (d.kind === "join") return `Join of ${d.parents.map((p) => p.name).join(" + ")}`;
-  if (d.kind === "union") return `Union of ${d.parents.map((p) => p.name).join(", ")}`;
-  return d.source.object ? d.source.object : "Custom query";
+  if (d.kind === "join") return t("Join of {names}", { names: d.parents.map((p) => p.name).join(" + ") });
+  if (d.kind === "union") return t("Union of {names}", { names: d.parents.map((p) => p.name).join(", ") });
+  return d.source.object ? d.source.object : t("Custom query");
 }
 
 // ---------- schedules: friendly presets <-> cron ----------
@@ -64,13 +65,13 @@ export type Preset = "manual" | "15m" | "30m" | "hourly" | "daily" | "weekdays" 
 export function describeSchedule(cron: string | null): string {
   const p = parseCron(cron);
   switch (p.preset) {
-    case "manual": return "Manual only";
-    case "15m": return "Every 15 minutes";
-    case "30m": return "Every 30 minutes";
-    case "hourly": return "Every hour";
-    case "daily": return `Daily at ${p.time}`;
-    case "weekdays": return `Weekdays at ${p.time}`;
-    default: return `Custom: ${cron}`;
+    case "manual": return t("Manual only");
+    case "15m": return t("Every 15 minutes");
+    case "30m": return t("Every 30 minutes");
+    case "hourly": return t("Every hour");
+    case "daily": return t("Daily at {time}", { time: p.time });
+    case "weekdays": return t("Weekdays at {time}", { time: p.time });
+    default: return t("Custom: {cron}", { cron });
   }
 }
 

@@ -8,6 +8,7 @@ import { CATEGORICAL, INK, inkOn, sequential } from "../../lib/chart/palette";
 import type { ChartConfig, ChartType, Pill } from "../../lib/chart/types";
 import type { QueryColumn, QueryResult } from "../../lib/types";
 import EChart, { type EChartHandle, type MarkEvent } from "./EChart";
+import { t } from "../../lib/i18n";
 
 export interface ChartViewHandle {
   png: () => string | null;
@@ -70,9 +71,9 @@ function FlatTable({ cfg, result, onMark, onSort }: Pick<Props, "cfg" | "result"
             {cols.map((c) => {
               const sorted = cfg.sort?.pill === c.key ? cfg.sort.dir : null;
               return (
-                <th key={c.key} className={clsx("whitespace-nowrap px-3 py-2 text-xs font-semibold text-slate-600", isNum(c) ? "text-right" : "text-left")}>
+                <th key={c.key} className={clsx("whitespace-nowrap px-3 py-2 text-xs font-semibold text-slate-600", isNum(c) ? "text-end" : "text-start")}>
                   <button className="inline-flex items-center gap-1 hover:text-slate-900 disabled:cursor-default" disabled={!onSort} onClick={() => onSort?.(c.key)}>
-                    {c.label}
+                    {t(c.label)}
                     {sorted === "asc" && <ArrowUp size={12} />}
                     {sorted === "desc" && <ArrowDown size={12} />}
                   </button>
@@ -88,7 +89,7 @@ function FlatTable({ cfg, result, onMark, onSort }: Pick<Props, "cfg" | "result"
                 const c = cols[j];
                 const style = shades[j]?.(r[i]);
                 return (
-                  <td key={i} style={style} className={clsx("whitespace-nowrap px-3 py-1.5", isNum(c) && "text-right tabular-nums", r[i] === null && "text-slate-400")}>
+                  <td key={i} style={style} className={clsx("whitespace-nowrap px-3 py-1.5", isNum(c) && "text-end tabular-nums", r[i] === null && "text-slate-400")}>
                     {r[i] === null ? (c.role === "dimension" ? "(empty)" : "") : formatValue(r[i], c)}
                   </td>
                 );
@@ -100,15 +101,15 @@ function FlatTable({ cfg, result, onMark, onSort }: Pick<Props, "cfg" | "result"
           <tfoot className="sticky bottom-0 bg-slate-50">
             <tr className="border-t border-slate-300 font-semibold">
               {order.map((i, j) => (
-                <td key={i} className={clsx("whitespace-nowrap px-3 py-2", isNum(cols[j]) && "text-right tabular-nums")}>
-                  {j === 0 && cols[j].role === "dimension" ? "Total" : result.totals![i] === null ? "" : formatValue(result.totals![i], cols[j])}
+                <td key={i} className={clsx("whitespace-nowrap px-3 py-2", isNum(cols[j]) && "text-end tabular-nums")}>
+                  {j === 0 && cols[j].role === "dimension" ? t("Total") : result.totals![i] === null ? "" : formatValue(result.totals![i], cols[j])}
                 </td>
               ))}
             </tr>
           </tfoot>
         )}
       </table>
-      {result.rows.length > MAX_TABLE_ROWS && <p className="p-2 text-xs text-slate-500">Showing the first {MAX_TABLE_ROWS.toLocaleString()} rows. Export to see all.</p>}
+      {result.rows.length > MAX_TABLE_ROWS && <p className="p-2 text-xs text-slate-500">{t("Showing the first {v0} rows. Export to see all.", { v0: MAX_TABLE_ROWS.toLocaleString() })}</p>}
     </div>
   );
 }
@@ -143,8 +144,8 @@ function PivotTable({ cfg, result, onMark }: Pick<Props, "cfg" | "result" | "onM
         <thead className="sticky top-0 z-10 bg-white">
           {Array.from({ length: levels }, (_, li) => (
             <tr key={li}>
-              {rowDims.map((p, i) => <th key={p.id} className="px-3 py-1.5 text-left text-xs font-semibold text-slate-600">{li === levels - 1 ? col(p).label : i === 0 ? col(colDims[li]).label : ""}</th>)}
-              {!rowDims.length && <th className="px-3 py-1.5 text-left text-xs font-semibold text-slate-600">{col(colDims[li]).label}</th>}
+              {rowDims.map((p, i) => <th key={p.id} className="px-3 py-1.5 text-start text-xs font-semibold text-slate-600">{li === levels - 1 ? col(p).label : i === 0 ? col(colDims[li]).label : ""}</th>)}
+              {!rowDims.length && <th className="px-3 py-1.5 text-start text-xs font-semibold text-slate-600">{t(col(colDims[li]).label)}</th>}
               {colKeys.map((ck) => (
                 <th key={ck} colSpan={Math.max(1, measures.length)} className="whitespace-nowrap border-b border-slate-200 px-3 py-1.5 text-center text-xs font-semibold text-slate-700">{colParts.get(ck)![li]}</th>
               ))}
@@ -153,7 +154,7 @@ function PivotTable({ cfg, result, onMark }: Pick<Props, "cfg" | "result" | "onM
           {measures.length > 1 && (
             <tr>
               {(rowDims.length ? rowDims : [null]).map((_, i) => <th key={i} />)}
-              {colKeys.flatMap((ck) => measures.map((m) => <th key={`${ck}-${m.id}`} className="whitespace-nowrap border-b border-slate-200 px-3 py-1.5 text-right text-xs font-medium text-slate-500">{col(m).label}</th>))}
+              {colKeys.flatMap((ck) => measures.map((m) => <th key={`${ck}-${m.id}`} className="whitespace-nowrap border-b border-slate-200 px-3 py-1.5 text-end text-xs font-medium text-slate-500">{t(col(m).label)}</th>))}
             </tr>
           )}
         </thead>
@@ -167,7 +168,7 @@ function PivotTable({ cfg, result, onMark }: Pick<Props, "cfg" | "result" | "onM
                   const v = cell?.values[mi];
                   return (
                     <td key={`${ck}-${m.id}`} style={shades[mi]?.(v)} onClick={(e) => cell && onMark?.({ row: cell.row, x: e.clientX, y: e.clientY })}
-                      className={clsx("whitespace-nowrap border-b border-slate-100 px-3 py-1.5 text-right tabular-nums", cell && onMark && "cursor-pointer")}>
+                      className={clsx("whitespace-nowrap border-b border-slate-100 px-3 py-1.5 text-end tabular-nums", cell && onMark && "cursor-pointer")}>
                       {v === null || v === undefined ? "" : formatValue(v, col(m))}
                     </td>
                   );
@@ -189,7 +190,7 @@ function Sparkline({ values }: { values: (number | null)[] }) {
     yAxis: { type: "value", show: false, scale: true },
     series: [{
       type: "line",
-      data: values.map((v, i) => (i === values.length - 1 ? { value: v, symbol: "circle", symbolSize: 8, itemStyle: { color: CATEGORICAL[0], borderColor: "#fff", borderWidth: 2 } } : v)),
+      data: values.map((v, i) => (i === values.length - 1 ? { value: v, symbol: "circle", symbolSize: 8, itemStyle: { color: CATEGORICAL[0], borderColor: INK.surface, borderWidth: 2 } } : v)),
       symbol: "none",
       lineStyle: { width: 2, color: INK.axis },
       silent: true,
@@ -209,14 +210,14 @@ function NumberTiles({ cfg, result }: Pick<Props, "cfg" | "result">) {
         const trend = dateDim >= 0 && result.rows.length > 2 ? result.rows.map((r) => (typeof r[i] === "number" ? (r[i] as number) : null)) : null;
         return (
           <div key={c.key} className="px-2">
-            <div className="text-sm text-slate-600">{c.label}</div>
+            <div className="text-sm text-slate-600">{t(c.label)}</div>
             <div className="mt-1 text-4xl font-semibold text-slate-900">{value === null ? "—" : formatValue(value, c, Math.abs(Number(value)) >= 100000)}</div>
             {value !== null && Math.abs(Number(value)) >= 100000 && <div className="text-xs text-slate-500">{formatValue(value, c)}</div>}
             {trend && <div className="mt-2"><Sparkline values={trend.slice(-24)} /></div>}
           </div>
         );
       })}
-      {!measures.length && <p className="text-sm text-slate-500">Add a measure.</p>}
+      {!measures.length && <p className="text-sm text-slate-500">{t("Add a measure.")}</p>}
       {cfg.shelves.columns.length + cfg.shelves.rows.length === 0 && null}
     </div>
   );
@@ -238,7 +239,7 @@ function RatingView({ cfg, result }: Pick<Props, "cfg" | "result">) {
   const m = result.columns.findIndex((c) => c.role === "measure");
   const d = result.columns.findIndex((c) => c.role === "dimension");
   const max = cfg.options.ratingMax || 5;
-  if (m < 0) return <p className="text-sm text-slate-500">Add a measure.</p>;
+  if (m < 0) return <p className="text-sm text-slate-500">{t("Add a measure.")}</p>;
   const col = result.columns[m];
   const items = d >= 0 ? result.rows.map((r) => ({ name: formatValue(r[d], result.columns[d]), value: r[m] as number | null })) : [{ name: col.label, value: (result.totals?.[m] ?? result.rows[0]?.[m]) as number | null }];
   return (
@@ -247,7 +248,7 @@ function RatingView({ cfg, result }: Pick<Props, "cfg" | "result">) {
         <div key={i} className="flex items-center gap-3">
           <span className="w-40 truncate text-sm text-slate-700">{it.name}</span>
           <Stars share={(it.value ?? 0) / max} />
-          <span className="text-sm font-semibold tabular-nums text-slate-900" aria-label={`${it.value ?? 0} out of ${max}`}>{it.value === null ? "—" : `${formatValue(it.value, { ...col, format: { type: "number", decimals: 1 } })} / ${max}`}</span>
+          <span className="text-sm font-semibold tabular-nums text-slate-900" aria-label={t("{v0} out of {max}", { v0: it.value ?? 0, max })}>{it.value === null ? "—" : `${formatValue(it.value, { ...col, format: { type: "number", decimals: 1 } })} / ${max}`}</span>
         </div>
       ))}
     </div>
@@ -267,7 +268,7 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
     let cancelled = false;
     buildChart(type, cfg, result, identity)
       .then((b) => !cancelled && (setBuilt(b), setError("")))
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not draw the chart"));
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : t("Could not draw the chart")));
     return () => {
       cancelled = true;
     };
@@ -278,7 +279,7 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
   return (
     <div data-state={stale || (usesECharts && !built && !error) ? "loading" : "ready"} className={clsx("flex h-full flex-col transition-opacity", stale && "opacity-50")}>
       {empty ? (
-        <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>No data for these fields and filters.</div>
+        <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>{t("No data for these fields and filters.")}</div>
       ) : type === "table" ? (
         <div style={{ height }}>{pivot ? <PivotTable cfg={cfg} result={result} onMark={onMark} /> : <FlatTable cfg={cfg} result={result} onMark={onMark} onSort={onSort} />}</div>
       ) : type === "kpi" ? (
@@ -290,15 +291,15 @@ const ChartView = forwardRef<ChartViewHandle, Props>(function ChartView({ cfg, t
       ) : built && Object.keys(built.option).length ? (
         <EChart ref={chart} option={built.option} maps={built.maps} height={height} onMark={onMark} />
       ) : (
-        <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>{built?.notes[0] ?? "Drawing…"}</div>
+        <div className="flex items-center justify-center text-sm text-slate-500" style={{ height }}>{built?.notes[0] ?? t("Drawing…")}</div>
       )}
       {!empty && (built?.notes.length || result.truncated) && usesECharts && built && Object.keys(built.option).length > 0 && (
         <ul className="mt-2 space-y-0.5 text-xs text-slate-500">
-          {result.truncated && <li>Showing the first {result.row_count.toLocaleString()} results. Add a filter to see the rest.</li>}
+          {result.truncated && <li>{t("Showing the first {v0} results. Add a filter to see the rest.", { v0: result.row_count.toLocaleString() })}</li>}
           {built.notes.map((n) => <li key={n}>{n}</li>)}
         </ul>
       )}
-      {!usesECharts && result.truncated && <p className="mt-2 text-xs text-slate-500">Showing the first {result.row_count.toLocaleString()} results.</p>}
+      {!usesECharts && result.truncated && <p className="mt-2 text-xs text-slate-500">{t("Showing the first {v0} results.", { v0: result.row_count.toLocaleString() })}</p>}
     </div>
   );
 });

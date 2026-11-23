@@ -1,3 +1,4 @@
+import type { DateUnit } from "../chart/types";
 import type { ChartConfig } from "../chart/types";
 import type { FieldFormat, Hierarchy } from "../types";
 
@@ -43,7 +44,7 @@ export interface DashFilter {
   grain?: "year" | "quarter" | "month" | "day" | null;
 }
 
-export type DateValue = { mode: "relative"; unit: "day" | "week" | "month" | "quarter" | "year"; n: number } | { mode: "range"; from: string | null; to: string | null };
+export type DateValue = { mode: "relative"; unit: DateUnit; n: number } | { mode: "range"; from: string | null; to: string | null };
 export type FilterValue = unknown[] | { min: number | null; max: number | null } | DateValue | string | null;
 
 export interface DashConfig {
@@ -65,6 +66,8 @@ export interface DashField {
 export interface DashDataset {
   id: number;
   name: string;
+  last_synced_at: string | null;
+  last_status: string;
   fields: DashField[];
   hierarchies: Hierarchy[];
   parameters: { name: string; description: string; data_type: string; default_value: unknown; allowed_values: unknown[] }[];
@@ -81,6 +84,9 @@ export interface DashboardSummary {
   level: "view" | "edit" | "manage";
   shared: boolean;
   tiles: number;
+  workspace_id: number | null;
+  workspace_name: string;
+  layout: { kind: string; x: number; y: number; w: number; h: number }[];
 }
 
 export interface Dashboard extends DashboardSummary {

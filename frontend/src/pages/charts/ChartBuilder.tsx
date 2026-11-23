@@ -15,6 +15,7 @@ import type { Catalog, ChartConfig, ChartOptions, ChartType, FilterPill, Pill, S
 import { emptyConfig, newId, SHELVES } from "../../lib/chart/types";
 import { download, get, post, put, saveFile } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
+import { useWorkspace } from "../../lib/workspace";
 import type { Field, QueryResult } from "../../lib/types";
 import FieldPanel from "./FieldPanel";
 import FilterModal from "./FilterModal";
@@ -22,6 +23,7 @@ import { drillDown, drillUp, fieldMap, fieldToPill, autoShelf, filterSummary, fi
 import { Menu, MenuItem, MenuLine, Shelf, type DragPayload, type PillActions } from "./Shelf";
 import { OptionsPanel, ShowMe } from "./SidePanel";
 import ViewDataModal from "./ViewDataModal";
+import { t } from "../../lib/i18n";
 
 const SINGLE: ShelfName[] = ["color", "size"];
 
@@ -48,6 +50,8 @@ export default function ChartBuilder() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { hasRole } = useAuth();
+  const { target } = useWorkspace();
+  const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(null);
   const isNew = id === "new";
 
   const saved = useQuery({ queryKey: ["chart", id], queryFn: () => get<SavedChart>(`/charts/${id}`), enabled: !isNew });
@@ -243,7 +247,7 @@ export default function ChartBuilder() {
       if (asCopy && !isNew) {
         chart = await post<SavedChart>(`/charts/${id}/copy`);
         chart = await put<SavedChart>(`/charts/${chart.id}`, { ...body, name: `${body.name} (copy)` });
-      } else if (isNew) chart = await post<SavedChart>("/charts", body);
+      } else if (isNew) chart = await post<SavedChart>("/charts", { ...body, workspace_id: target });
       else chart = await put<SavedChart>(`/charts/${id}`, body);
       qc.setQueryData(["chart", String(chart.id)], chart);
       await qc.invalidateQueries({ queryKey: ["charts"] });
@@ -254,7 +258,7 @@ export default function ChartBuilder() {
         navigate(`/charts/${chart.id}`, { replace: isNew });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the chart");
+      setError(err instanceof Error ? err.message : t("Could not save the chart"));
     } finally {
       setSaving(false);
     }
@@ -263,7 +267,7 @@ export default function ChartBuilder() {
     try {
       await download("/query/export", { dataset: datasetId, ...buildQuery(cfg, type), limit: undefined, format }, `chart.${format}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      setError(err instanceof Error ? err.message : t("Export failed"));
     }
   };
   const exportPng = () => {
@@ -272,9 +276,9 @@ export default function ChartBuilder() {
   };
 
   if (!datasetId && !isNew && saved.error) return <div className="p-6"><Alert>{(saved.error as Error).message}</Alert></div>;
-  if (isNew && !datasetId) return <div className="p-6"><Alert>Choose a dataset first. <Link className="underline" to="/charts">Back to charts</Link></Alert></div>;
+  if (isNew && !datasetId) return <div className="p-6"><Alert>{t("Choose a dataset first.")} <Link className="underline" to="/charts">{t("Back to charts")}</Link></Alert></div>;
   if (catalog.error) return <div className="p-6"><Alert>{(catalog.error as Error).message}</Alert></div>;
-  if (!catalog.data) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
+  if (!catalog.data) return <div className="p-6 text-sm text-slate-500">{t("Loading…")}</div>;
 
   const shelfProps = { fields, catalog: catalog.data, sort: cfg.sort, actions };
   const queryError = data.error ? (data.error as Error).message : "";
@@ -286,7 +290,7 @@ export default function ChartBuilder() {
         onAdd={addField} onRemovePill={(pid) => actions.change(pid, null)} />
 
       {/* Filters and marks */}
-      <div className="min-h-0 space-y-4 overflow-y-auto border-r border-slate-200 p-3">
+      <div className="min-h-0 space-y-4 overflow-y-auto border-e border-slate-200 p-3">
         <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
           e.preventDefault();
           try {
@@ -294,24 +298,24 @@ export default function ChartBuilder() {
             onDrop("filters", p, 0);
           } catch { /* not ours */ }
         }}>
-          <h3 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500"><Filter size={12} /> Filters</h3>
+          <h3 className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500"><Filter size={12} /> {t("Filters")}</h3>
           <div className="min-h-12 space-y-1 rounded-lg border border-dashed border-slate-300 bg-white p-1.5">
             {cfg.filters.map((f) => (
               <div key={f.id} className="flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
-                <button className="min-w-0 flex-1 truncate text-left" title={filterSummary(f, fields)}
+                <button className="min-w-0 flex-1 truncate text-start" title={filterSummary(f, fields)}
                   onClick={() => setFilterEdit({ field: f.field, existing: f })}>{filterSummary(f, fields)}</button>
-                <button onClick={() => setCfg((c) => ({ ...c, filters: c.filters.filter((x) => x.id !== f.id) }))} aria-label="Remove filter"><X size={12} /></button>
+                <button onClick={() => setCfg((c) => ({ ...c, filters: c.filters.filter((x) => x.id !== f.id) }))} aria-label={t("Remove filter")}><X size={12} /></button>
               </div>
             ))}
-            {!cfg.filters.length && <p className="px-1 py-1.5 text-xs text-slate-400">Drop fields here to filter</p>}
+            {!cfg.filters.length && <p className="px-1 py-1.5 text-xs text-slate-400">{t("Drop fields here to filter")}</p>}
           </div>
         </div>
         <div>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Marks</h3>
+          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("Marks")}</h3>
           <div className="space-y-1.5">
             {(["color", "size", "label", "tooltip", "detail"] as ShelfName[]).map((s) => (
-              <Shelf key={s} name={s} label={SHELF_LABEL[s]} pills={cfg.shelves[s]} vertical {...shelfProps}
-                onDrop={(p, i) => onDrop(s, p, i)} hint={s === "color" ? "Colour by a field" : undefined} />
+              <Shelf key={s} name={s} label={t(SHELF_LABEL[s])} pills={cfg.shelves[s]} vertical {...shelfProps}
+                onDrop={(p, i) => onDrop(s, p, i)} hint={s === "color" ? t("Colour by a field") : undefined} />
             ))}
           </div>
         </div>
@@ -320,25 +324,30 @@ export default function ChartBuilder() {
       {/* Main */}
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-          <Input value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} placeholder={title} className="max-w-xs py-1.5 font-medium" aria-label="Chart name" />
-          {dirty && <span className="text-xs text-slate-400">Unsaved</span>}
-          <div className="ml-auto flex items-center gap-1">
-            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" onClick={undo} disabled={!past.current.length} title="Undo" aria-label="Undo"><Undo2 size={16} /></button>
-            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" onClick={redo} disabled={!future.current.length} title="Redo" aria-label="Redo"><Redo2 size={16} /></button>
-            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={swap} title="Swap rows and columns" aria-label="Swap rows and columns"><ArrowLeftRight size={16} /></button>
-            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => setCfg({ ...emptyConfig(), params: cfg.params })} title="Clear" aria-label="Clear"><Eraser size={16} /></button>
+          <Input value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} placeholder={title} className="min-w-0 max-w-sm flex-1 py-1.5 font-display font-semibold" aria-label={t("Chart name")} />
+          {dirty && <span className="text-xs text-slate-400">{t("Unsaved")}</span>}
+          <div className="ms-auto flex flex-wrap items-center justify-end gap-1">
+            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" onClick={undo} disabled={!past.current.length} title={t("Undo")} aria-label={t("Undo")}><Undo2 size={16} /></button>
+            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-30" onClick={redo} disabled={!future.current.length} title={t("Redo")} aria-label={t("Redo")}><Redo2 size={16} /></button>
+            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={swap} title={t("Swap rows and columns")} aria-label={t("Swap rows and columns")}><ArrowLeftRight size={16} /></button>
+            <button className="rounded p-1.5 text-slate-500 hover:bg-slate-100" onClick={() => setCfg({ ...emptyConfig(), params: cfg.params })} title={t("Clear")} aria-label={t("Clear")}><Eraser size={16} /></button>
             <span className="mx-1 h-5 w-px bg-slate-200" />
-            <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => setViewData({ spec: underlyingQuery(cfg), title: "Data behind this chart" })}><Eye size={14} /> View data</Button>
-            {hasRole("explorer") && <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => exportCsv("csv")}><Download size={14} /> CSV</Button>}
-            {hasRole("explorer") && <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => exportCsv("xlsx")}><Download size={14} /> Excel</Button>}
-            {!["table", "kpi", "rating"].includes(type) && <Button size="sm" variant="secondary" disabled={!data.data} onClick={exportPng}><Image size={14} /> PNG</Button>}
-            {!isNew && <Button size="sm" variant="secondary" onClick={() => save(true)} disabled={saving}><Copy size={14} /> Save copy</Button>}
-            <Button size="sm" onClick={() => save()} disabled={saving || (!dirty && !isNew)}><Save size={14} /> {saving ? "Saving…" : "Save"}</Button>
+            <Button size="sm" variant="secondary" disabled={!data.data} onClick={() => setViewData({ spec: underlyingQuery(cfg), title: "Data behind this chart" })}><Eye size={14} /> {t("View data")}</Button>
+            <Button size="sm" variant="secondary" disabled={!data.data} onClick={(e) => setExportMenu({ x: e.clientX - 160, y: e.clientY + 12 })} aria-haspopup="menu"><Download size={14} /> {t("Export")}</Button>
+            {exportMenu && (
+              <Menu anchor={exportMenu} onClose={() => setExportMenu(null)}>
+                {hasRole("explorer") && <MenuItem onClick={() => { setExportMenu(null); exportCsv("csv"); }}><Download size={14} /> {t("CSV")}</MenuItem>}
+                {hasRole("explorer") && <MenuItem onClick={() => { setExportMenu(null); exportCsv("xlsx"); }}><Download size={14} /> {t("Excel")}</MenuItem>}
+                {!["table", "kpi", "rating"].includes(type) && <MenuItem onClick={() => { setExportMenu(null); exportPng(); }}><Image size={14} /> {t("PNG")}</MenuItem>}
+              </Menu>
+            )}
+            {!isNew && <Button size="sm" variant="secondary" onClick={() => save(true)} disabled={saving}><Copy size={14} /> {t("Save copy")}</Button>}
+            <Button size="sm" onClick={() => save()} disabled={saving || (!dirty && !isNew)}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
           </div>
         </div>
         <div className="space-y-1.5 border-b border-slate-200 bg-white px-4 py-2">
-          <Shelf name="columns" label="Columns" pills={cfg.shelves.columns} {...shelfProps} onDrop={(p, i) => onDrop("columns", p, i)} />
-          <Shelf name="rows" label="Rows" pills={cfg.shelves.rows} {...shelfProps} onDrop={(p, i) => onDrop("rows", p, i)} />
+          <Shelf name="columns" label={t("Columns")} pills={cfg.shelves.columns} {...shelfProps} onDrop={(p, i) => onDrop("columns", p, i)} />
+          <Shelf name="rows" label={t("Rows")} pills={cfg.shelves.rows} {...shelfProps} onDrop={(p, i) => onDrop("rows", p, i)} />
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-4">
           {error && <div className="mb-3"><Alert>{error}</Alert></div>}
@@ -346,8 +355,8 @@ export default function ChartBuilder() {
             <h2 className="mb-3 font-semibold text-slate-900">{title}</h2>
             {!hasFields ? (
               <div className="flex h-[420px] flex-col items-center justify-center gap-2 text-center text-sm text-slate-500">
-                <p className="font-medium text-slate-700">Drag fields to Columns and Rows to start</p>
-                <p>Dimensions (blue) split the data; measures (green) are added up.</p>
+                <p className="font-medium text-slate-700">{t("Drag fields to Columns and Rows to start")}</p>
+                <p>{t("Dimensions (blue) split the data; measures (green) are added up.")}</p>
               </div>
             ) : queryError ? (
               <div className="flex h-[420px] items-center justify-center"><Alert>{queryError}</Alert></div>
@@ -355,11 +364,11 @@ export default function ChartBuilder() {
               <ChartView ref={view} cfg={shown!.cfg} type={shown!.type} result={data.data} identity={identityList}
                 stale={data.isFetching} height={460} onMark={setMark} onSort={sortByColumn} />
             ) : (
-              <div className="flex h-[420px] items-center justify-center text-sm text-slate-500">Loading…</div>
+              <div className="flex h-[420px] items-center justify-center text-sm text-slate-500">{t("Loading…")}</div>
             )}
             {data.data && (
-              <p className={clsx("mt-3 text-right text-[11px] text-slate-400")}>
-                {data.data.restricted && "Only rows you may see · "}{data.data.cached ? "from cache" : `${data.data.ms} ms`}
+              <p className={clsx("mt-3 text-end text-[11px] text-slate-400")}>
+                {data.data.restricted && "Only rows you may see · "}{data.data.cached ? t("from cache") : `${data.data.ms} ms`}
               </p>
             )}
           </div>
@@ -367,19 +376,19 @@ export default function ChartBuilder() {
       </div>
 
       {/* Show me and options */}
-      <div className="min-h-0 space-y-5 overflow-y-auto border-l border-slate-200 bg-white p-3">
+      <div className="min-h-0 space-y-5 overflow-y-auto border-s border-slate-200 bg-white p-3">
         <ShowMe cfg={cfg} resolved={type} available={avail} onPick={(t) => setCfg((c) => ({ ...c, type: t }))} />
         <OptionsPanel cfg={cfg} type={type} onChange={setOptions} />
       </div>
 
       {mark && markRow && (
         <Menu anchor={{ x: mark.x, y: mark.y }} onClose={() => setMark(null)}>
-          <div className="px-3 py-1.5 text-xs font-medium text-slate-500">{markTitle || "This mark"}</div>
+          <div className="px-3 py-1.5 text-xs font-medium text-slate-500">{markTitle || t("This mark")}</div>
           <MenuLine />
-          {markDims.length > 0 && <MenuItem onClick={() => keepOnly(false)}>Keep only</MenuItem>}
-          {markDims.length > 0 && <MenuItem onClick={() => keepOnly(true)}>Exclude {markDims.length > 1 ? formatValue(markDims[0][1], markDims[0][0]) : ""}</MenuItem>}
-          {markDrill && <MenuItem onClick={drillMark}>Drill down to {markDrill.label}</MenuItem>}
-          <MenuItem onClick={() => { setViewData({ spec: underlyingQuery(cfg, markFilters(shown!.cfg, data.data!.columns, markRow)), title: markTitle ? `Data for ${markTitle}` : "Data" }); setMark(null); }}>View data</MenuItem>
+          {markDims.length > 0 && <MenuItem onClick={() => keepOnly(false)}>{t("Keep only")}</MenuItem>}
+          {markDims.length > 0 && <MenuItem onClick={() => keepOnly(true)}>{t("Exclude {v0}", { v0: markDims.length > 1 ? formatValue(markDims[0][1], markDims[0][0]) : "" })}</MenuItem>}
+          {markDrill && <MenuItem onClick={drillMark}>{t("Drill down to {label}", { label: markDrill.label })}</MenuItem>}
+          <MenuItem onClick={() => { setViewData({ spec: underlyingQuery(cfg, markFilters(shown!.cfg, data.data!.columns, markRow)), title: markTitle ? `Data for ${markTitle}` : "Data" }); setMark(null); }}>{t("View data")}</MenuItem>
         </Menu>
       )}
       {filterEdit && (

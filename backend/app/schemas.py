@@ -140,6 +140,7 @@ class UserOut(ORM):
     created_at: datetime
     groups: list[GroupRef] = []
     sign_in_methods: list[IdentityOut] = []
+    preferences: dict[str, Any] = {}
 
 
 class UserCreate(BaseModel):
@@ -460,6 +461,7 @@ class ChartIn(BaseModel):
     dataset_id: int
     config: dict[str, Any]
     query: dict[str, Any]
+    workspace_id: int | None = None  # used when the chart is created
 
 
 class ChartOut(ORM):
@@ -475,6 +477,15 @@ class ChartOut(ORM):
     created_at: datetime
     updated_at: datetime
     can_edit: bool = False
+    workspace_id: int | None = None
+    workspace_name: str = ""
+    level: str = "manage"  # view | edit | manage
+
+
+class MoveIn(BaseModel):
+    """Put a dashboard or chart in a workspace (None: back to personal)."""
+
+    workspace_id: int | None = None
 
 
 # ---------- dashboards ----------
@@ -482,6 +493,7 @@ class DashboardIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field("", max_length=2000)
     config: dict[str, Any]
+    workspace_id: int | None = None  # used when the dashboard is created
 
 
 class DashboardSummary(BaseModel):
@@ -495,6 +507,9 @@ class DashboardSummary(BaseModel):
     level: str  # view | edit | manage
     shared: bool
     tiles: int
+    workspace_id: int | None = None
+    workspace_name: str = ""
+    layout: list[dict[str, Any]] = []  # first tab's tiles: kind, x, y, w, h
 
 
 class ShareEntry(BaseModel):
@@ -516,3 +531,31 @@ class DashboardQueryIn(BaseModel):
     drill: list[dict[str, Any]] = []
     rows: bool = False
     limit: int | None = Field(None, ge=1, le=50_000)
+
+
+# ---------- workspaces ----------
+class WorkspaceIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field("", max_length=2000)
+
+
+class WorkspaceOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    my_role: str  # viewer | editor | manager
+    dashboards: int = 0
+    charts: int = 0
+    members: int = 0
+    created_at: datetime
+
+
+class WorkspaceMemberIn(BaseModel):
+    principal: Literal["user", "group"]
+    id: int
+    role: Literal["viewer", "editor", "manager"] = "viewer"
+
+
+class WorkspaceMemberOut(WorkspaceMemberIn):
+    name: str = ""
+    email: str = ""

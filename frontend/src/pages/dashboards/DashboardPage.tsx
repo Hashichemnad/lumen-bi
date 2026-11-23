@@ -3,12 +3,18 @@ import "react-resizable/css/styles.css";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeft, Copy, Download, Filter, Link2, Monitor, Pencil, Plus, Settings2, Share2, Smartphone, Star, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle, Check, Copy, Download, Filter, FolderInput, Link2, Monitor, MoreHorizontal, Pencil, Play, Plus, Settings2, Share2,
+  Smartphone, Star, Trash2, Tv, X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactGridLayout, { useContainerWidth, type Layout } from "react-grid-layout";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
+import MoveModal from "../../components/MoveModal";
 import { Alert, Button, Input } from "../../components/ui";
+import { formatMoment } from "../../lib/dates";
+import { t as tr } from "../../lib/i18n";
 import { newId } from "../../lib/chart/types";
 import { del, download, get, post, put } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -18,6 +24,7 @@ import ViewDataModal from "../charts/ViewDataModal";
 import { AddTileModal, FilterModal, ShareModal, TileModal } from "./DashboardModals";
 import DashboardTile, { MARGIN, ROW_HEIGHT, tileHeight, type TileActions } from "./DashboardTile";
 import FilterBar from "./FilterBar";
+import Stage, { groupsOf } from "./Stage";
 
 type Spec = Record<string, unknown>;
 const PHONE_COLS = 4;
@@ -34,12 +41,7 @@ function freeSpot(items: Tile[], w: number, h: number): { x: number; y: number }
 
 /** Print view (PDF/PNG export): tiles in normal page flow, each section starting on a new page. */
 function PrintGrid({ tab, render }: { tab: Tab; render: (tile: Tile, heightPx: number) => React.ReactNode }) {
-  const ordered = [...tab.items].sort((a, b) => a.desktop.y - b.desktop.y || a.desktop.x - b.desktop.x);
-  const groups: Tile[][] = [];
-  for (const t of ordered) {
-    if (t.kind === "section" || !groups.length) groups.push([t]);
-    else groups[groups.length - 1].push(t);
-  }
+  const groups = groupsOf(tab);
   return (
     <>
       {groups.map((g, gi) => {
@@ -79,15 +81,18 @@ function Grid({ tab, editing, device, onLayout, render }: {
   const { width, containerRef, mounted } = useContainerWidth();
   const phone = device === "phone";
   const cols = phone ? PHONE_COLS : 12;
+  // The grid places tiles from the left; in right-to-left pages the layout is mirrored
+  const rtl = document.documentElement.dir === "rtl";
+  const flip = (x: number, w: number) => (rtl ? cols - x - w : x);
   const auto = useMemo(() => stacked(tab.items), [tab.items]);
   const layout: Layout = tab.items.map((t) => {
     const box = phone ? (t.phone ?? auto[t.id]) : t.desktop;
-    return { i: t.id, ...box, minW: phone ? 2 : 2, minH: 2 };
+    return { i: t.id, ...box, x: flip(box.x, box.w), minW: phone ? 2 : 2, minH: 2 };
   });
   const change = (l: Layout) => {
     if (!editing) return;
     const boxes: Record<string, Box> = {};
-    for (const it of l) boxes[it.i] = { x: it.x, y: it.y, w: it.w, h: it.h };
+    for (const it of l) boxes[it.i] = { x: flip(it.x, it.w), y: it.y, w: it.w, h: it.h };
     // Only real moves count (the grid also reports the layout when it first appears)
     const moved = layout.some((it) => {
       const b = boxes[it.i];
@@ -96,7 +101,7 @@ function Grid({ tab, editing, device, onLayout, render }: {
     if (moved) onLayout(boxes, device);
   };
   return (
-    <div ref={containerRef} className={clsx(phone && editing && "mx-auto max-w-[400px] rounded-2xl border-8 border-slate-800 bg-slate-50")}>
+    <div ref={containerRef} dir="ltr" className={clsx(phone && editing && "mx-auto max-w-[400px] rounded-2xl border-8 border-slate-800 bg-slate-50")}>
       {mounted && (
         <ReactGridLayout layout={layout} width={width} onLayoutChange={change}
           gridConfig={{ cols, rowHeight: ROW_HEIGHT, margin: [MARGIN, MARGIN], containerPadding: [0, 0] }}
@@ -104,7 +109,7 @@ function Grid({ tab, editing, device, onLayout, render }: {
           resizeConfig={{ enabled: editing, handles: ["se"] }}>
           {tab.items.map((t) => {
             const h = (phone ? (t.phone ?? auto[t.id]) : t.desktop).h;
-            return <div key={t.id}>{render(t, tileHeight(h))}</div>;
+            return <div key={t.id} dir={rtl ? "rtl" : "ltr"}>{render(t, tileHeight(h))}</div>;
           })}
         </ReactGridLayout>
       )}
@@ -169,7 +174,7 @@ export default function DashboardPage() {
       setSaveError("");
     } catch (err) {
       setSaveState("error");
-      setSaveError(err instanceof Error ? err.message : "Could not save");
+      setSaveError(err instanceof Error ? err.message : tr("Could not save"));
     }
   }, [id, dash?.description, qc]);
   const update = useCallback((change: (c: DashConfig) => DashConfig, delay = 600) => {
@@ -194,7 +199,16 @@ export default function DashboardPage() {
   const [cross, setCross] = useState<CrossFilter | null>(null);
   const [drills, setDrills] = useState<Record<string, Drill>>({});
   const [viewData, setViewData] = useState<{ tile: string; title: string; filters: Spec[] } | null>(null);
-  const [modal, setModal] = useState<null | { kind: "add" } | { kind: "tile"; tile: Tile } | { kind: "filter"; filter?: DashFilter } | { kind: "share" }>(null);
+  const [modal, setModal] = useState<null | { kind: "add" } | { kind: "tile"; tile: Tile } | { kind: "filter"; filter?: DashFilter } | { kind: "share" } | { kind: "move" }>(null);
+  const stage: "tv" | "present" | null = search.get("tv") === "1" ? "tv" : search.get("present") === "1" ? "present" : null;
+  const openStage = (m: "tv" | "present" | null) => {
+    const next = new URLSearchParams(search);
+    next.delete("tv");
+    next.delete("present");
+    if (m) next.set(m, "1");
+    setSearch(next);
+  };
+  const [more, setMore] = useState(false);
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [copied, setCopied] = useState(false);
   const [narrow, setNarrow] = useState(window.innerWidth < PHONE_WIDTH);
@@ -258,7 +272,7 @@ export default function DashboardPage() {
   }, [dash?.id, tab?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once the tab is drawn
 
   if (detail.error) return <div className="p-6"><Alert>{(detail.error as Error).message}</Alert></div>;
-  if (!dash || !cfg || !tab) return <div className="p-6 text-sm text-slate-500">Loading…</div>;
+  if (!dash || !cfg || !tab) return <div className="p-6 text-sm text-slate-500">{tr("Loading…")}</div>;
 
   const datasetOf = (t: Tile) => {
     const chart = t.chart_id ? dash.charts[String(t.chart_id)] : undefined;
@@ -319,7 +333,7 @@ export default function DashboardPage() {
     try {
       await download(`/dashboards/${id}/render`, { format, state: search.get("s") }, `${dash.name}.${format}`);
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Export failed");
+      setExportError(err instanceof Error ? err.message : tr("Export failed"));
     } finally {
       setExporting("");
     }
@@ -330,7 +344,7 @@ export default function DashboardPage() {
     navigate(`/dashboards/${made.id}?edit=1`);
   };
   const remove = async () => {
-    if (!confirm(`Delete the dashboard "${dash.name}"? Its charts are kept.`)) return;
+    if (!confirm(tr("Delete the dashboard \"{name}\"? Its charts are kept.", { name: dash.name }))) return;
     await del(`/dashboards/${id}`);
     await qc.invalidateQueries({ queryKey: ["dashboards"] });
     navigate("/dashboards");
@@ -341,15 +355,27 @@ export default function DashboardPage() {
     setTabId(t.id);
   };
   const renameTab = (t: Tab) => {
-    const n = prompt("Tab name", t.name);
+    const n = prompt(tr("Tab name"), t.name);
     if (n && n.trim()) update((c) => ({ ...c, tabs: c.tabs.map((x) => (x.id === t.id ? { ...x, name: n.trim() } : x)) }), 0);
   };
   const removeTab = (t: Tab) => {
-    if (cfg.tabs.length < 2 || !confirm(`Delete the tab "${t.name}" and its tiles?`)) return;
+    if (cfg.tabs.length < 2 || !confirm(tr("Delete the tab \"{name}\" and its tiles?", { name: t.name }))) return;
     update((c) => ({ ...c, tabs: c.tabs.filter((x) => x.id !== t.id) }), 0);
     setTabId(undefined);
   };
   const showDevice = editing ? device : narrow ? "phone" : "desktop";
+
+  const synced = Object.values(dash.datasets).map((d) => d.last_synced_at).filter(Boolean) as string[];
+  const refreshedAt = synced.length ? synced.sort().slice(-1)[0] : null;
+  const failed = Object.values(dash.datasets).some((d) => d.last_status === "failed");
+  const renderTile = (t: Tile, heightPx: number) => (
+    <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
+      drill={drills[t.id]} isCrossSource={cross?.source === t.id} actions={actions} editing={false} heightPx={heightPx}
+      canExport={hasRole("explorer")} />
+  );
+  if (stage && !PRINT) {
+    return <Stage dash={dash} cfg={cfg} mode={stage} render={renderTile} onExit={() => openStage(null)} refreshedAt={refreshedAt} />;
+  }
 
   if (PRINT) {
     const active = cfg.filters.filter((f) => isActive(f, filterValue(f)));
@@ -362,11 +388,11 @@ export default function DashboardPage() {
           </div>
           <div className="text-end text-xs text-slate-500">
             {cfg.tabs.length > 1 && <div>{tab.name}</div>}
-            <div>Exported {new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</div>
+            <div>{tr("Exported {v0}", { v0: new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) })}</div>
           </div>
         </div>
         {active.length > 0 && (
-          <p className="mb-3 text-xs text-slate-600">Filters: {active.map((f) => `${f.label}: ${describeValue(f, filterValue(f))}`).join(" · ")}</p>
+          <p className="mb-3 text-xs text-slate-600">{tr("Filters: {v0}", { v0: active.map((f) => `${f.label}: ${describeValue(f, filterValue(f))}`).join(" · ") })}</p>
         )}
         <PrintGrid tab={tab} render={(t, heightPx) => (
           <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
@@ -380,48 +406,75 @@ export default function DashboardPage() {
     <div ref={scroller} onScroll={onScroll} className="h-full overflow-y-auto bg-slate-50">
       <div className="mx-auto max-w-[1600px] p-4 lg:p-6">
         {/* header */}
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <Link to="/dashboards" className="rounded p-1 text-slate-500 hover:bg-slate-200" aria-label="All dashboards"><ArrowLeft size={18} /></Link>
-          {editing ? (
-            <Input value={name} onChange={(e) => { setName(e.target.value); update((c) => c, 800); }} className="max-w-sm py-1.5 text-lg font-semibold" aria-label="Dashboard name" />
-          ) : (
-            <h1 className="text-xl font-semibold text-slate-900">{dash.name}</h1>
-          )}
-          {!editing && (
-            <button onClick={toggleFavorite} className="rounded p-1 text-slate-400 hover:text-amber-500" aria-label={dash.favorite ? "Remove from favourites" : "Add to favourites"}>
-              <Star size={18} className={dash.favorite ? "fill-amber-400 text-amber-500" : ""} />
-            </button>
-          )}
-          {editing && (
-            <span className={clsx("text-xs", saveState === "error" ? "text-red-600" : "text-slate-400")}>
-              {saveState === "saving" ? "Saving…" : saveState === "error" ? saveError : "All changes saved"}
-            </span>
-          )}
-          <div className="ms-auto flex flex-wrap items-center gap-1.5">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <nav aria-label={tr("Breadcrumb")} className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+              <Link to="/workspaces" className="hover:text-slate-800">{dash.workspace_name || tr("Personal")}</Link>
+              <span aria-hidden="true">/</span>
+              <Link to="/dashboards" className="hover:text-slate-800">{tr("Dashboards")}</Link>
+            </nav>
+            <div className="flex items-center gap-2">
+              {editing ? (
+                <Input value={name} onChange={(e) => { setName(e.target.value); update((c) => c, 800); }} className="max-w-md py-1.5 text-lg font-semibold" aria-label={tr("Dashboard name")} />
+              ) : (
+                <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">{dash.name}</h1>
+              )}
+              {!editing && (
+                <button onClick={toggleFavorite} className="rounded p-1 text-slate-400 hover:text-amber-500" aria-label={dash.favorite ? tr("Remove from favourites") : tr("Add to favourites")}>
+                  <Star size={18} className={dash.favorite ? "fill-amber-400 text-amber-500" : ""} />
+                </button>
+              )}
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+              {editing ? (
+                <span className={clsx(saveState === "error" ? "text-red-600" : "text-slate-500")}>
+                  {saveState === "saving" ? tr("Saving…") : saveState === "error" ? saveError : tr("All changes saved")}
+                </span>
+              ) : failed ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 font-semibold text-red-700"><AlertTriangle size={12} /> {tr("A data sync failed")}</span>
+              ) : refreshedAt ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700"><Check size={12} strokeWidth={3} /> {tr("Data refreshed {when}", { when: formatMoment(refreshedAt) })}</span>
+              ) : null}
+              {!editing && dash.description && <span className="text-slate-500">{dash.description}</span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {editing ? (
               <>
                 <div className="flex rounded-lg border border-slate-300 bg-white p-0.5">
-                  <button onClick={() => setDevice("desktop")} className={clsx("rounded-md px-2 py-1", device === "desktop" ? "bg-slate-100" : "text-slate-500")} title="Desktop layout" aria-label="Desktop layout"><Monitor size={15} /></button>
-                  <button onClick={() => setDevice("phone")} className={clsx("rounded-md px-2 py-1", device === "phone" ? "bg-slate-100" : "text-slate-500")} title="Phone layout" aria-label="Phone layout"><Smartphone size={15} /></button>
+                  <button onClick={() => setDevice("desktop")} aria-pressed={device === "desktop"} className={clsx("rounded-md px-2 py-1.5", device === "desktop" ? "bg-slate-100" : "text-slate-500")} title={tr("Desktop layout")} aria-label={tr("Desktop layout")}><Monitor size={15} /></button>
+                  <button onClick={() => setDevice("phone")} aria-pressed={device === "phone"} className={clsx("rounded-md px-2 py-1.5", device === "phone" ? "bg-slate-100" : "text-slate-500")} title={tr("Phone layout")} aria-label={tr("Phone layout")}><Smartphone size={15} /></button>
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "filter" })}><Filter size={14} /> Add filter</Button>
-                <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "add" })}><Plus size={14} /> Add tile</Button>
+                <Button variant="secondary" onClick={() => setModal({ kind: "filter" })}><Filter size={15} /> {tr("Add filter")}</Button>
+                <Button variant="secondary" onClick={() => setModal({ kind: "add" })}><Plus size={15} /> {tr("Add tile")}</Button>
                 <OptionsMenu config={cfg} onChange={(o) => update((c) => ({ ...c, options: { ...c.options, ...o } }), 0)} />
-                <Button size="sm" onClick={() => { if (pending.current) { window.clearTimeout(pending.current); pending.current = null; save(cfg); } setEditing(false); }}>Done</Button>
+                <Button onClick={() => { if (pending.current) { window.clearTimeout(pending.current); pending.current = null; save(cfg); } setEditing(false); }}>{tr("Done")}</Button>
               </>
             ) : (
               <>
-                <Button size="sm" variant="secondary" onClick={copyLink}><Link2 size={14} /> {copied ? "Copied" : "Copy link"}</Button>
+                <Button variant="secondary" onClick={() => openStage("present")}><Play size={15} /> {tr("Present")}</Button>
+                <Button variant="secondary" onClick={() => openStage("tv")}><Tv size={15} /> {tr("TV mode")}</Button>
                 <ExportMenu busy={exporting} onExport={exportAs} />
-                {dash.can_manage && <Button size="sm" variant="secondary" onClick={() => setModal({ kind: "share" })}><Share2 size={14} /> Share</Button>}
-                {hasRole("explorer") && <Button size="sm" variant="secondary" onClick={copyDashboard}><Copy size={14} /> Copy</Button>}
-                {dash.can_manage && <Button size="sm" variant="secondary" onClick={remove} aria-label="Delete dashboard"><Trash2 size={14} /></Button>}
-                {dash.can_edit && <Button size="sm" onClick={() => setEditing(true)}><Pencil size={14} /> Edit</Button>}
+                {dash.can_manage && <Button variant="secondary" onClick={() => setModal({ kind: "share" })}><Share2 size={15} /> {tr("Share")}</Button>}
+                <div className="relative">
+                  <Button variant="secondary" onClick={() => setMore((m) => !m)} aria-label={tr("More")} aria-expanded={more}><MoreHorizontal size={16} /></Button>
+                  {more && (
+                    <>
+                      <button className="fixed inset-0 z-30 cursor-default" aria-hidden="true" tabIndex={-1} onClick={() => setMore(false)} />
+                      <div role="menu" className="absolute end-0 z-40 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
+                        <button role="menuitem" onClick={() => { copyLink(); setMore(false); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Link2 size={14} /> {copied ? tr("Copied") : tr("Copy link")}</button>
+                        {hasRole("explorer") && <button role="menuitem" onClick={() => { setMore(false); copyDashboard(); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Copy size={14} /> {tr("Make a copy")}</button>}
+                        {dash.can_manage && <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "move" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><FolderInput size={14} /> {tr("Move to a workspace")}</button>}
+                        {dash.can_manage && <button role="menuitem" onClick={() => { setMore(false); remove(); }} className="flex w-full items-center gap-2 px-3 py-2 text-start text-red-700 hover:bg-red-50"><Trash2 size={14} /> {tr("Delete")}</button>}
+                      </div>
+                    </>
+                  )}
+                </div>
+                {dash.can_edit && <Button onClick={() => setEditing(true)}><Pencil size={15} /> {tr("Edit")}</Button>}
               </>
             )}
           </div>
-        </div>
-        {dash.description && !editing && <p className="-mt-1 mb-3 text-sm text-slate-600">{dash.description}</p>}
+        </header>
         {exportError && <div className="mb-3"><Alert>{exportError}</Alert></div>}
 
         {/* tabs */}
@@ -433,13 +486,13 @@ export default function DashboardPage() {
                   className={clsx("px-3 py-2 text-sm font-medium", t.id === tab.id ? "text-brand-700" : "text-slate-500 hover:text-slate-700")}>{t.name}</button>
                 {editing && t.id === tab.id && (
                   <>
-                    <button onClick={() => renameTab(t)} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label="Rename tab"><Pencil size={12} /></button>
-                    {cfg.tabs.length > 1 && <button onClick={() => removeTab(t)} className="rounded p-0.5 text-slate-400 hover:text-red-600" aria-label="Delete tab"><X size={12} /></button>}
+                    <button onClick={() => renameTab(t)} className="rounded p-0.5 text-slate-400 hover:text-slate-700" aria-label={tr("Rename tab")}><Pencil size={12} /></button>
+                    {cfg.tabs.length > 1 && <button onClick={() => removeTab(t)} className="rounded p-0.5 text-slate-400 hover:text-red-600" aria-label={tr("Delete tab")}><X size={12} /></button>}
                   </>
                 )}
               </div>
             ))}
-            {editing && <button onClick={addTab} className="ms-1 inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"><Plus size={14} /> Tab</button>}
+            {editing && <button onClick={addTab} className="ms-1 inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"><Plus size={14} /> {tr("Tab")}</button>}
           </div>
         )}
 
@@ -460,13 +513,13 @@ export default function DashboardPage() {
           <div className="rounded-xl border-2 border-dashed border-slate-300 p-12 text-center text-sm text-slate-500">
             {editing ? (
               <>
-                <p className="font-medium text-slate-700">This tab is empty</p>
-                <p className="mt-1">Add charts, text, images or web pages.</p>
-                <Button className="mt-4" onClick={() => setModal({ kind: "add" })}><Plus size={16} /> Add tile</Button>
+                <p className="font-medium text-slate-700">{tr("This tab is empty")}</p>
+                <p className="mt-1">{tr("Add charts, text, images or web pages.")}</p>
+                <Button className="mt-4" onClick={() => setModal({ kind: "add" })}><Plus size={16} /> {tr("Add tile")}</Button>
               </>
             ) : dash.can_edit ? (
-              <p>Nothing here yet. <button className="text-brand-600 hover:underline" onClick={() => setEditing(true)}>Edit</button> to add charts.</p>
-            ) : <p>Nothing here yet.</p>}
+              <p>{tr("Nothing here yet.")} <button className="text-brand-600 hover:underline" onClick={() => setEditing(true)}>{tr("Edit")}</button> {tr("to add charts.")}</p>
+            ) : <p>{tr("Nothing here yet.")}</p>}
           </div>
         ) : (
           <Grid key={`${tab.id}-${showDevice}`} tab={tab} editing={editing} device={showDevice} onLayout={onLayout}
@@ -481,7 +534,7 @@ export default function DashboardPage() {
           <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone={false} />
         )}
         </div>
-        {editing && device === "phone" && <p className="mt-3 text-center text-xs text-slate-500">Arrange tiles for phones. Until you change it, phones show the tiles stacked in reading order.</p>}
+        {editing && device === "phone" && <p className="mt-3 text-center text-xs text-slate-500">{tr("Arrange tiles for phones. Until you change it, phones show the tiles stacked in reading order.")}</p>}
       </div>
 
       {modal?.kind === "add" && <AddTileModal onAdd={addTile} onClose={() => setModal(null)} />}
@@ -491,6 +544,10 @@ export default function DashboardPage() {
       )}
       {modal?.kind === "filter" && <FilterModal dash={{ ...dash, config: cfg }} existing={modal.filter} onSave={saveFilter} onClose={() => setModal(null)} />}
       {modal?.kind === "share" && <ShareModal dash={dash} onClose={() => setModal(null)} />}
+      {modal?.kind === "move" && (
+        <MoveModal kind="dashboards" id={dash.id} current={dash.workspace_id} onClose={() => setModal(null)}
+          onMoved={async () => { await qc.invalidateQueries({ queryKey: ["dashboard", dash.id] }); await qc.invalidateQueries({ queryKey: ["dashboards"] }); }} />
+      )}
       {viewData && (
         <DashboardViewData dashId={id} tile={viewData.tile} title={viewData.title} filters={viewData.filters}
           params={paramsFor(tab.items.find((t) => t.id === viewData.tile) ?? tab.items[0])} onClose={() => setViewData(null)} canExport={hasRole("explorer")} />
@@ -504,28 +561,35 @@ function SectionNav({ sections, active, onGo, phone }: { sections: Tile[]; activ
   if (phone) {
     return (
       <div className="sticky top-0 z-20 -mx-4 mb-3 bg-slate-50/95 px-4 py-2 backdrop-blur">
-        <select value={active ?? ""} onChange={(e) => e.target.value && onGo(e.target.value)} aria-label="Go to section"
+        <select value={active ?? ""} onChange={(e) => e.target.value && onGo(e.target.value)} aria-label={tr("Go to section")}
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          {sections.map((t) => <option key={t.id} value={t.id}>{t.code ? `${t.code} · ` : ""}{t.title || "Section"}</option>)}
+          {sections.map((t) => <option key={t.id} value={t.id}>{t.code ? `${t.code} · ` : ""}{t.title || tr("Section")}</option>)}
         </select>
       </div>
     );
   }
   return (
-    <nav aria-label="Sections" className="sticky top-4 hidden w-56 shrink-0 self-start lg:block">
-      <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sections</div>
-      <ul className="max-h-[calc(100vh-8rem)] space-y-0.5 overflow-y-auto border-s border-slate-200">
+    <nav aria-labelledby="sections-h" className="sticky top-4 hidden w-64 shrink-0 self-start rounded-xl border border-slate-200 bg-white p-3 shadow-sm lg:block">
+      <h2 id="sections-h" className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{tr("Sections")}</h2>
+      <ul className="max-h-[calc(100vh-9rem)] space-y-0.5 overflow-y-auto">
         {sections.map((t) => (
           <li key={t.id}>
             <button onClick={() => onGo(t.id)} aria-current={active === t.id ? "true" : undefined}
-              className={clsx("-ms-px block w-full border-s-2 py-1.5 pe-2 ps-3 text-start text-sm transition-colors",
-                active === t.id ? "border-brand-600 font-medium text-brand-700" : "border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900")}>
-              {t.code && <span className="block text-[11px] font-semibold text-slate-400">{t.code}</span>}
-              <span className="line-clamp-2">{t.title || "Section"}</span>
+              className={clsx("flex min-h-11 w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm transition-colors",
+                active === t.id ? "bg-brand-50 text-slate-900" : "text-slate-700 hover:bg-slate-100")}>
+              <span aria-hidden="true" className={clsx("mt-1.5 size-2 shrink-0 rounded-full", active === t.id ? "bg-brand-600" : "bg-slate-300")} />
+              <span className="min-w-0">
+                {t.code && <span className="block text-[11px] font-bold tracking-wide text-slate-500">{t.code}</span>}
+                <span className={clsx("line-clamp-2 leading-snug", active === t.id && "font-semibold")}>{t.title || tr("Section")}</span>
+              </span>
             </button>
           </li>
         ))}
       </ul>
+      <div className="my-2 h-px bg-slate-200" />
+      <button onClick={() => sections[0] && onGo(sections[0].id)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-brand-700 hover:bg-slate-100">
+        {tr("Back to top")}
+      </button>
     </nav>
   );
 }
@@ -535,17 +599,17 @@ function ExportMenu({ busy, onExport }: { busy: "" | "pdf" | "png"; onExport: (f
   return (
     <div className="relative">
       <Button size="sm" variant="secondary" onClick={() => setOpen(!open)} disabled={!!busy} aria-expanded={open}>
-        <Download size={14} /> {busy ? "Preparing…" : "Export"}
+        <Download size={14} /> {busy ? tr("Preparing…") : tr("Export")}
       </Button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute end-0 z-40 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-lg">
             <button className="block w-full px-3 py-2 text-start hover:bg-slate-50" onClick={() => { setOpen(false); onExport("pdf"); }}>
-              PDF <span className="block text-xs text-slate-500">A4 landscape, a page per section</span>
+              {tr("PDF")} <span className="block text-xs text-slate-500">{tr("A4 landscape, a page per section")}</span>
             </button>
             <button className="block w-full px-3 py-2 text-start hover:bg-slate-50" onClick={() => { setOpen(false); onExport("png"); }}>
-              Image (PNG) <span className="block text-xs text-slate-500">The whole tab as one picture</span>
+              {tr("Image (PNG)")} <span className="block text-xs text-slate-500">{tr("The whole tab as one picture")}</span>
             </button>
           </div>
         </>
@@ -558,17 +622,17 @@ function OptionsMenu({ config, onChange }: { config: DashConfig; onChange: (o: P
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <Button size="sm" variant="secondary" onClick={() => setOpen(!open)} aria-expanded={open}><Settings2 size={14} /> Options</Button>
+      <Button size="sm" variant="secondary" onClick={() => setOpen(!open)} aria-expanded={open}><Settings2 size={14} /> {tr("Options")}</Button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute end-0 z-40 mt-1 w-72 space-y-2 rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-lg">
             <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.cross_filter} onChange={(e) => onChange({ cross_filter: e.target.checked })} />
-              <span>Clicking a chart can filter the others</span></label>
+              <span>{tr("Clicking a chart can filter the others")}</span></label>
             <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.view_data} onChange={(e) => onChange({ view_data: e.target.checked })} />
-              <span>People can view the rows behind charts (their own rows only)</span></label>
+              <span>{tr("People can view the rows behind charts (their own rows only)")}</span></label>
             <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={config.options.phone_layout} onChange={(e) => onChange({ phone_layout: e.target.checked })} />
-              <span>Use my own phone layout (otherwise tiles stack)</span></label>
+              <span>{tr("Use my own phone layout (otherwise tiles stack)")}</span></label>
           </div>
         </>
       )}

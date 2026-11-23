@@ -13,16 +13,23 @@ import {
   type Built, type Obj, type Row,
 } from "./build";
 import { compactNumber, formatValue } from "./format";
+import { weekSettings } from "../dates";
 import { CATEGORICAL, DIVERGING, FONT, INK, OTHER, OTHER_LABEL, SEQUENTIAL, colorMap, inkOn } from "./palette";
 import type { ChartConfig, ChartType, Pill } from "./types";
 import { SHELVES } from "./types";
+import { t as tr } from "../i18n";
 
 const dims = (cfg: ChartConfig) => SHELVES.flatMap((s) => cfg.shelves[s]).filter((p) => p.role === "dimension");
 const measures = (cfg: ChartConfig) => SHELVES.flatMap((s) => cfg.shelves[s]).filter((p) => p.role === "measure");
 const isDateCol = (c?: QueryColumn) => !!c && (c.type === "date" || c.type === "datetime");
 const empty = (note: string): Built => ({ option: {}, notes: [note] });
-const BASE = { animationDuration: 300, textStyle: { fontFamily: FONT } };
-const NEUTRAL = ["#f0efec", "#e1e0d9", "#c3c2b7"];
+const BASE = {
+  animationDuration: 300,
+  get textStyle() {
+    return { fontFamily: FONT };
+  },
+};
+const neutral = () => [INK.wash, INK.wash2, INK.axis];
 
 /** Rows in the order the chart should read; values folded into "Other" as one colour. */
 function single(R: Result, row: Row | undefined, m: Pill): number | null {
@@ -34,7 +41,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
   const L = layout(cfg);
   const cat = cfg.shelves.rows.find((p) => p.role === "dimension") ?? L.cats[0];
   const ms = measures(cfg);
-  if (!cat) return empty("Put the categories (for example age bands) on Rows.");
+  if (!cat) return empty(tr("Put the categories (for example age bands) on Rows."));
   const rows = R.r.rows;
   const cats: string[] = [];
   for (const r of rows) { const k = R.text(r, cat); if (!cats.includes(k)) cats.push(k); }
@@ -53,7 +60,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
       const sides = cm.kept.slice(0, 2);
       if (present.length !== 2) notes.push(`A pyramid compares two groups; ${R.label(L.colorDim)} has ${present.length}.`);
       const m = ms[0];
-      if (!m || sides.length < 2) return empty("Pyramids need two groups on Color (or two measures) and a measure.");
+      if (!m || sides.length < 2) return empty(tr("Pyramids need two groups on Color (or two measures) and a measure."));
       sides.forEach((sv, i) => {
         const data: (number | null)[] = cats.map(() => null);
         rows.forEach((r) => { if (String(R.get(r, L.colorDim!)) === sv) data[ci(r)] = R.num(r, m); });
@@ -62,7 +69,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
         if (i === 0) leftName = label; else rightName = label;
       });
     } else {
-      if (ms.length < 2) return empty("Pyramids need two measures (one per side) or two groups on Color.");
+      if (ms.length < 2) return empty(tr("Pyramids need two measures (one per side) or two groups on Color."));
       ms.slice(0, 2).forEach((m, i) => {
         const data: (number | null)[] = cats.map(() => null);
         rows.forEach((r) => { data[ci(r)] = R.num(r, m); });
@@ -71,7 +78,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
       });
     }
   } else {
-    if (ms.length < 2 || !L.colorDim) return empty("Stacked pyramids need two measures (one per side) and a dimension on Color.");
+    if (ms.length < 2 || !L.colorDim) return empty(tr("Stacked pyramids need two measures (one per side) and a dimension on Color."));
     const present = rows.map((r) => R.get(r, L.colorDim!));
     const cm = colorMap(identity, present, CATEGORICAL.length, weightsOf(R, rows, L.colorDim, ms[0]));
     const keys = [...cm.kept, ...(cm.hasOther ? [OTHER_LABEL] : [])];
@@ -99,7 +106,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
       legend: { ...legend(names.map((n) => ({ name: n, icon: "roundRect" })), cfg.options.legend !== false), data: names },
       grid: { left: 8, right: 16, top: 36, bottom: 28, containLabel: true },
       tooltip: {
-        ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,0.04)" } },
+        ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: INK.pointer } },
         formatter: (ps: { seriesName: string; value: number | null; color: string; name: string }[]) =>
           tooltipBox(ps[0]?.name ?? "", ps.filter((p) => p.value !== null).map((p) => ({ color: p.color, value: formatValue(Math.abs(p.value as number), fmt), name: p.seriesName.trim() }))),
       },
@@ -113,7 +120,7 @@ function pyramid(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bool
 // ------------------------------------------------------------------ parallel coordinates and radar
 function parallel(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const ms = measures(cfg);
-  if (ms.length < 2) return empty("Add two or more measures: each becomes an axis.");
+  if (ms.length < 2) return empty(tr("Add two or more measures: each becomes an axis."));
   const L = layout(cfg);
   const rows = R.r.rows;
   const item = dims(cfg);
@@ -145,7 +152,7 @@ function parallel(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
 
 function radar(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const ms = measures(cfg);
-  if (ms.length < 3) return empty("Add three or more measures: each becomes a spoke.");
+  if (ms.length < 3) return empty(tr("Add three or more measures: each becomes a spoke."));
   const L = layout(cfg);
   const rows = R.r.rows;
   const d = L.colorDim ?? dims(cfg)[0];
@@ -182,7 +189,7 @@ function timeSeries(type: ChartType, cfg: ChartConfig, R: Result, identity: unkn
   const L = layout(cfg);
   const date = dims(cfg).find((p) => isDateCol(R.col(p)));
   const ms = L.values.length ? L.values : measures(cfg).slice(0, 1);
-  if (!date || !ms.length) return empty("Time charts need a date and a measure.");
+  if (!date || !ms.length) return empty(tr("Time charts need a date and a measure."));
   const rows = R.r.rows;
   const series: Obj[] = [];
   const split = L.colorDim && L.colorDim !== date ? L.colorDim : undefined;
@@ -223,7 +230,7 @@ function timeSeries(type: ChartType, cfg: ChartConfig, R: Result, identity: unkn
       yAxis: valueAxis(fmt),
       dataZoom: [
         { type: "inside", filterMode: "none" },
-        { type: "slider", height: 18, bottom: 8, borderColor: INK.grid, fillerColor: "rgba(42,120,214,0.12)", handleStyle: { color: "#fff", borderColor: INK.axis }, dataBackground: { lineStyle: { color: INK.axis }, areaStyle: { color: INK.grid } }, textStyle: { color: INK.muted } },
+        { type: "slider", height: 18, bottom: 8, borderColor: INK.grid, fillerColor: "rgba(42,120,214,0.12)", handleStyle: { color: INK.surface, borderColor: INK.axis }, dataBackground: { lineStyle: { color: INK.axis }, areaStyle: { color: INK.grid } }, textStyle: { color: INK.muted } },
       ],
       series,
     },
@@ -233,27 +240,40 @@ function timeSeries(type: ChartType, cfg: ChartConfig, R: Result, identity: unkn
 function calendar(cfg: ChartConfig, R: Result): Built {
   const date = dims(cfg).find((p) => isDateCol(R.col(p)));
   const m = layout(cfg).colorMeasure ?? measures(cfg)[0];
-  if (!date || !m) return empty("A calendar needs a date (by day) and a measure.");
+  if (!date || !m) return empty(tr("A calendar needs a date (by day) and a measure."));
   const notes: string[] = [];
-  if (date.grain && date.grain !== "day") notes.push("Set the date to Day (pill menu) for one square per day.");
+  if (date.grain && date.grain !== "day") notes.push(tr("Set the date to Day (pill menu) for one square per day."));
   const rows = R.r.rows;
   const points = rows.map((r, ri) => ({ value: [String(R.get(r, date)).slice(0, 10), R.num(r, m)], row: ri })).filter((p) => p.value[0] !== "null");
   const years = [...new Set(points.map((p) => String(p.value[0]).slice(0, 4)))].sort().slice(-3);
-  if (!years.length) return empty("No dates to show.");
+  if (!years.length) return empty(tr("No dates to show."));
   const vals = points.map((p) => p.value[1] as number).filter((v) => typeof v === "number");
   const col = R.col(m);
+  // The weekend (Regional settings) is shaded under the days, and weeks start on the organisation's first day
+  const { start, weekend } = weekSettings();
+  const weekendDays = (y: string) => {
+    const out: { value: [string, null] }[] = [];
+    for (let d = new Date(Number(y), 0, 1); d.getFullYear() === Number(y); d.setDate(d.getDate() + 1)) {
+      const iso = ((d.getDay() + 6) % 7) + 1;
+      if (weekend.includes(iso)) out.push({ value: [`${y}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, null] });
+    }
+    return out;
+  };
   return {
     notes,
     option: {
       ...BASE,
-      tooltip: { ...TOOLTIP_BASE, formatter: (p: { data: { value: [string, number | null] } }) => tooltipBox(formatValue(p.data.value[0], { type: "date", format: { type: "date" }, grain: null, part: null }), [{ value: formatValue(p.data.value[1], col), name: R.label(m) }]) },
-      visualMap: { min: Math.min(...vals, 0), max: Math.max(...vals, 1), orient: "horizontal", left: "center", bottom: 0, itemHeight: 160, itemWidth: 10, inRange: { color: SEQUENTIAL }, text: [formatValue(Math.max(...vals, 1), col, true), formatValue(Math.min(...vals, 0), col, true)], textStyle: { color: INK.muted }, calculable: false },
+      tooltip: { ...TOOLTIP_BASE, formatter: (p: { data: { value: [string, number | null] } }) => p.data.value[1] === null ? "" : tooltipBox(formatValue(p.data.value[0], { type: "date", format: { type: "date" }, grain: null, part: null }), [{ value: formatValue(p.data.value[1], col), name: R.label(m) }]) },
+      visualMap: { seriesIndex: years.map((_, i) => years.length + i), min: Math.min(...vals, 0), max: Math.max(...vals, 1), orient: "horizontal", left: "center", bottom: 0, itemHeight: 160, itemWidth: 10, inRange: { color: SEQUENTIAL }, text: [formatValue(Math.max(...vals, 1), col, true), formatValue(Math.min(...vals, 0), col, true)], textStyle: { color: INK.muted }, calculable: false },
       calendar: years.map((y, i) => ({
         range: y, top: 30 + i * 135, left: 48, right: 16, cellSize: ["auto", 15], orient: "horizontal",
-        itemStyle: { borderColor: INK.surface, borderWidth: 2, color: "#f7f7f5" }, splitLine: { show: false },
-        yearLabel: { color: INK.secondary, fontFamily: FONT }, monthLabel: { color: INK.muted }, dayLabel: { color: INK.muted, firstDay: 1, nameMap: ["S", "M", "T", "W", "T", "F", "S"] },
+        itemStyle: { borderColor: INK.surface, borderWidth: 2, color: INK.track }, splitLine: { show: false },
+        yearLabel: { color: INK.secondary, fontFamily: FONT }, monthLabel: { color: INK.muted }, dayLabel: { color: INK.muted, firstDay: start % 7, nameMap: ["S", "M", "T", "W", "T", "F", "S"] },
       })),
-      series: years.map((y, i) => ({ type: "heatmap", coordinateSystem: "calendar", calendarIndex: i, data: points.filter((p) => String(p.value[0]).startsWith(y)) })),
+      series: [
+        ...years.map((y, i) => ({ type: "heatmap", coordinateSystem: "calendar", calendarIndex: i, silent: true, itemStyle: { color: INK.wash }, data: weekendDays(y) })),
+        ...years.map((y, i) => ({ type: "heatmap", coordinateSystem: "calendar", calendarIndex: i, data: points.filter((p) => String(p.value[0]).startsWith(y)) })),
+      ],
     },
   };
 }
@@ -262,7 +282,7 @@ function calendar(cfg: ChartConfig, R: Result): Built {
 function gantt(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const task = cfg.shelves.rows.find((p) => p.role === "dimension") ?? dims(cfg).find((p) => !isDateCol(R.col(p)));
   const dates = dims(cfg).filter((p) => isDateCol(R.col(p)));
-  if (!task || dates.length < 2) return empty("Gantt: put the task on Rows and the start and end dates on Columns (in that order, as exact dates).");
+  if (!task || dates.length < 2) return empty(tr("Gantt: put the task on Rows and the start and end dates on Columns (in that order, as exact dates)."));
   const [start, end] = dates;
   const L = layout(cfg);
   const rows = R.r.rows;
@@ -318,7 +338,7 @@ function gaugeValues(cfg: ChartConfig, R: Result) {
 
 function gauges(type: ChartType, cfg: ChartConfig, R: Result): Built {
   const { m, t, value, target, max } = gaugeValues(cfg, R);
-  if (!m || value === null) return empty("Add a measure (and optionally a target measure, or set a maximum in Options).");
+  if (!m || value === null) return empty(tr("Add a measure (and optionally a target measure, or set a maximum in Options)."));
   const col = R.col(m);
   const share = max ? value / max : 0;
   const notes = dims(cfg).length ? ["Gauges show the total; dimensions are ignored."] : [];
@@ -374,7 +394,7 @@ function gauges(type: ChartType, cfg: ChartConfig, R: Result): Built {
 function bullet(cfg: ChartConfig, R: Result): Built {
   const ms = measures(cfg);
   const [m, t] = ms;
-  if (!m) return empty("Add the actual measure and a target measure.");
+  if (!m) return empty(tr("Add the actual measure and a target measure."));
   const item = cfg.shelves.rows.find((p) => p.role === "dimension") ?? dims(cfg)[0];
   const rows = R.r.rows;
   const cats = item ? rows.map((r) => R.text(r, item)) : [R.label(m)];
@@ -394,7 +414,7 @@ function bullet(cfg: ChartConfig, R: Result): Built {
       xAxis: valueAxis(col),
       yAxis: { ...categoryAxis(cats), inverse: true },
       series: [
-        ...bands.map((d, i) => ({ type: "bar", stack: "bands", data: d, barWidth: 22, silent: true, itemStyle: { color: NEUTRAL[i] }, z: 1 })),
+        ...bands.map((d, i) => ({ type: "bar", stack: "bands", data: d, barWidth: 22, silent: true, itemStyle: { color: neutral()[i] }, z: 1 })),
         { name: R.label(m), type: "bar", data: actual.map((v, i) => ({ value: v, row: item ? i : -1 })), barWidth: 8, barGap: "-100%", z: 3, itemStyle: { color: CATEGORICAL[0], borderRadius: [0, 3, 3, 0] } },
         ...(t ? [{ name: R.label(t), type: "scatter", data: target.map((v) => v), symbol: "rect", symbolSize: [3, 22], z: 4, itemStyle: { color: INK.primary } }] : []),
       ],
@@ -408,7 +428,7 @@ function dots(type: ChartType, cfg: ChartConfig, R: Result, identity: unknown[])
   const horizontal = type === "dot_h";
   const cat = (horizontal ? cfg.shelves.rows : cfg.shelves.columns).find((p) => p.role === "dimension") ?? dims(cfg).find((p) => p !== L.colorDim);
   const ms = measures(cfg);
-  if (!cat || !ms.length) return empty("Add a dimension and one or more measures.");
+  if (!cat || !ms.length) return empty(tr("Add a dimension and one or more measures."));
   const rows = R.r.rows;
   const cats: string[] = [];
   for (const r of rows) { const k = R.text(r, cat); if (!cats.includes(k)) cats.push(k); }
@@ -425,7 +445,7 @@ function dots(type: ChartType, cfg: ChartConfig, R: Result, identity: unknown[])
   }
   const col = R.col(ms[0]);
   const showLegend = cfg.options.legend !== false && series.length > 1;
-  const catAxis = { ...categoryAxis(cats), boundaryGap: true, splitLine: { show: true, lineStyle: { color: "#f3f2ee" } } };
+  const catAxis = { ...categoryAxis(cats), boundaryGap: true, splitLine: { show: true, lineStyle: { color: INK.band } } };
   return {
     notes: [],
     option: {
@@ -445,7 +465,7 @@ function waterfall(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bo
   const L = layout(cfg);
   const cat = L.cats.find((p) => p !== L.colorDim) ?? dims(cfg).find((p) => p !== L.colorDim);
   const m = L.values[0] ?? measures(cfg)[0];
-  if (!cat || !m) return empty("Add the steps (a dimension) and a measure.");
+  if (!cat || !m) return empty(tr("Add the steps (a dimension) and a measure."));
   const rows = R.r.rows;
   const col = R.col(m);
   const cats: string[] = [];
@@ -471,7 +491,7 @@ function waterfall(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bo
       option: {
         ...BASE,
         grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
-        tooltip: { ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,0.04)" } }, formatter: (ps: { dataIndex: number }[]) => { const i = ps[0]?.dataIndex ?? 0; return i >= cats.length ? tooltipBox("Total", [{ value: formatValue(run, col), name: R.label(m) }]) : tooltipBox(cats[i], [{ color: step[i] >= 0 ? DIVERGING.positive : DIVERGING.negative, value: `${step[i] >= 0 ? "+" : ""}${formatValue(step[i], col)}`, name: "Change" }, { value: formatValue(running[i], col), name: "Running total" }]); } },
+        tooltip: { ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: INK.pointer } }, formatter: (ps: { dataIndex: number }[]) => { const i = ps[0]?.dataIndex ?? 0; return i >= cats.length ? tooltipBox("Total", [{ value: formatValue(run, col), name: R.label(m) }]) : tooltipBox(cats[i], [{ color: step[i] >= 0 ? DIVERGING.positive : DIVERGING.negative, value: `${step[i] >= 0 ? "+" : ""}${formatValue(step[i], col)}`, name: "Change" }, { value: formatValue(running[i], col), name: "Running total" }]); } },
         xAxis: categoryAxis(labels),
         yAxis: valueAxis(col),
         series: [
@@ -505,7 +525,7 @@ function waterfall(cfg: ChartConfig, R: Result, identity: unknown[], stacked: bo
       ...BASE,
       legend: legend(series.slice(1).map((s) => ({ name: s.name as string, icon: "roundRect" })), cfg.options.legend !== false),
       grid: { left: 8, right: 16, top: 36, bottom: 8, containLabel: true },
-      tooltip: { ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,0.04)" } }, formatter: (ps: { seriesName: string; color: string; value: number | null; dataIndex: number }[]) => tooltipBox(labels[ps[0]?.dataIndex ?? 0], ps.filter((p) => p.seriesName && p.value).map((p) => ({ color: p.color, value: formatValue(p.value, col), name: p.seriesName }))) },
+      tooltip: { ...TOOLTIP_BASE, trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: INK.pointer } }, formatter: (ps: { seriesName: string; color: string; value: number | null; dataIndex: number }[]) => tooltipBox(labels[ps[0]?.dataIndex ?? 0], ps.filter((p) => p.seriesName && p.value).map((p) => ({ color: p.color, value: formatValue(p.value, col), name: p.seriesName }))) },
       xAxis: categoryAxis(labels),
       yAxis: valueAxis(col),
       series,
@@ -527,7 +547,7 @@ function stages(cfg: ChartConfig, R: Result) {
 
 function funnel(cfg: ChartConfig, R: Result): Built {
   const s = stages(cfg, R);
-  if (!s) return empty("Add the stages (a dimension) and a measure.");
+  if (!s) return empty(tr("Add the stages (a dimension) and a measure."));
   const items = cfg.options.order !== "data" && !cfg.sort ? [...s.items].reverse() : s.items;
   const first = items[0]?.value || 1;
   const n = items.length;
@@ -551,7 +571,7 @@ function funnel(cfg: ChartConfig, R: Result): Built {
 
 function origami(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const s = stages(cfg, R);
-  if (!s) return empty("Origami: put a dimension on Color and a measure on Size.");
+  if (!s) return empty(tr("Origami: put a dimension on Color and a measure on Size."));
   const cm = colorMap(identity, s.items.map((i) => i.raw), CATEGORICAL.length, new Map(s.items.map((i) => [String(i.raw), Math.abs(i.value)])));
   const items = s.items.map((it) => ({ ...it, color: cm.folded(it.raw) ? OTHER : cm.color(it.raw) }));
   const vmax = Math.max(1, ...items.map((i) => i.value));
@@ -608,7 +628,7 @@ function origami(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
 function sankey(cfg: ChartConfig, R: Result, identity: unknown[]): Built {
   const levels = dims(cfg);
   const m = measures(cfg)[0];
-  if (levels.length < 2 || !m) return empty("Sankey: add two or more dimensions (from → to, in shelf order) and a measure.");
+  if (levels.length < 2 || !m) return empty(tr("Sankey: add two or more dimensions (from → to, in shelf order) and a measure."));
   const rows = R.r.rows;
   const nodeName = (li: number, v: string) => `${li}\u0001${v}`;
   const shown = (name: string) => name.split("\u0001")[1] ?? name;
@@ -655,8 +675,8 @@ async function geomap(cfg: ChartConfig, R: Result): Promise<Built> {
   const L = layout(cfg);
   const d = [...L.cats, ...(L.colorDim ? [L.colorDim] : []), ...L.detail][0];
   const m = L.colorMeasure ?? L.size ?? L.values[0];
-  if (!cfg.options.boundary) return empty("Choose the map in Options (an admin or creator uploads boundary files under Data → Maps).");
-  if (!d || !m) return empty("Add the area names (a dimension) and a measure.");
+  if (!cfg.options.boundary) return empty(tr("Choose the map in Options (an admin or creator uploads boundary files under Data → Maps)."));
+  if (!d || !m) return empty(tr("Add the area names (a dimension) and a measure."));
   const id = cfg.options.boundary;
   if (!geoCache.has(id)) geoCache.set(id, get(`/boundaries/${id}`));
   const b = await geoCache.get(id)!;
@@ -681,7 +701,7 @@ async function geomap(cfg: ChartConfig, R: Result): Promise<Built> {
       visualMap: { min: Math.min(...vals, 0), max: Math.max(...vals, 1), orient: "horizontal", left: 0, bottom: 0, itemHeight: 140, itemWidth: 10, inRange: { color: SEQUENTIAL }, text: [formatValue(Math.max(...vals, 1), col, true), formatValue(Math.min(...vals, 0), col, true)], textStyle: { color: INK.muted }, calculable: false },
       series: [{
         type: "map", map: mapName, nameProperty: prop, roam: true,
-        itemStyle: { areaColor: "#f0efec", borderColor: INK.surface, borderWidth: 1 }, emphasis: { itemStyle: { areaColor: "#e1e0d9" }, label: { show: false } },
+        itemStyle: { areaColor: INK.wash, borderColor: INK.surface, borderWidth: 1 }, emphasis: { itemStyle: { areaColor: INK.wash2 }, label: { show: false } },
         label: { show: cfg.options.labels !== "none", color: INK.secondary, fontFamily: FONT }, select: { disabled: true },
         data: rows.map((r, ri) => (matched[ri] ? { name: matched[ri], value: R.num(r, m), row: ri } : null)).filter(Boolean),
       }],
@@ -712,7 +732,7 @@ export async function buildMore(type: ChartType, cfg: ChartConfig, R: Result, id
     case "origami": return origami(cfg, R, identity);
     case "sankey": return sankey(cfg, R, identity);
     case "geomap": return geomap(cfg, R);
-    default: return empty("Unknown chart type");
+    default: return empty(tr("Unknown chart type"));
   }
 }
 
