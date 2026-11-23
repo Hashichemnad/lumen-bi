@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models import Dataset, DatasetField, User
-from app.query import cache, duck, rls
+from app.query import cache, duck, masking, rls
 from app.query.rls import Params, Principal
 from app.query.spec import Dimension, Filter, Measure, QuerySpec, TableCalc
 from app.semantic import model
@@ -144,7 +144,11 @@ class _Builder:
         self.calendar = settings.regional(db)
         rls_sql, self.rule_results = rls.evaluate(db, ds, principal, self.ctx, self.params)
         self.restricted = rls_sql is not None
-        self.base = f"base AS (SELECT * FROM read_parquet({snapshots._lit(path)}) WHERE {rls_sql or 'TRUE'})"
+        # Masked columns (PII) are replaced after row-level security has chosen the rows
+        replace, self.masked = masking.replacements(db, ds, principal)
+        self.base = (
+            f"base AS (SELECT *{replace} FROM read_parquet({snapshots._lit(path)}) WHERE {rls_sql or 'TRUE'})"
+        )
 
     # -------------------------------------------------------------- fields
     def label(self, name: str) -> str:

@@ -15,8 +15,8 @@
 | 9 | Dashboards UI | Done |
 | 10 | More chart types, dashboard sections, exports | Done |
 | 11 | UI/UX redesign, themes, Arabic/RTL, workspaces, calendars, kiosk mode | Done (layout changes from the owner's testing to follow) |
-| 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | Next |
-| 13 | AI and MCP server | — |
+| 12 | Subscriptions, alerts, embedding, masking, KPI goals, data quality, versions | Done (Teams and WhatsApp to be tried with real accounts) |
+| 13 | AI and MCP server | Next |
 | 14 | Admin and hardening | — |
 
 ## What exists (milestones 1–2)
@@ -340,15 +340,76 @@ the UI must be attractive and very easy to use, with designs shown before buildi
   the engine; dates are shown in Hijri, grouping stays Gregorian. TV mode uses a signed-in session (a "TV"
   user with the Viewer role works); sign-in-free screens come with signed embedding in milestone 12.
 
-## Next: milestone 12
+## What exists (milestone 12)
 
-- Per-recipient email subscriptions, data-driven alerts, Teams / email / WhatsApp notifications, signed
-  embedding (also for TV screens without a session), comments and chart annotations, column masking (PII),
-  KPI goals and scorecards (status in section headers and in the navigator), data quality and freshness
-  checks, versions (last 2 kept) with roll back.
+- Models (migration `0010`, `app/models/governance.py`): `item_versions`, `column_masks`, `comments`,
+  `data_checks`, `subscriptions`, `alerts`, `notification_log`, `embed_keys`, `display_links`.
+- **Versions** (`services/versions.py`): the state before a change is kept for dashboards and charts, at most
+  the **last 2** (owner's decision); dashboards save while being edited, so a new version is kept only when
+  the last one is older than 15 minutes or by someone else. Roll back keeps the current state as a version.
+  Editors only; audited (`dashboard.restore`, `chart.restore`). Deleting an item deletes its versions.
+- **KPI goals and scorecards** (`services/kpi.py`): a section tile can have a goal (the chart tile whose first
+  measure — its grand total with dimensions — is the actual, the target, higher or lower is better, the "at
+  risk" tolerance). Status (on track / at risk / off track / no data) is worked out on the server for each
+  viewer with their row-level security and the filters on screen (`POST /dashboards/{id}/kpis`). Shown in
+  section headers, coloured dots in the navigator, and a Scorecard dialog.
+- **Comments and annotations**: comments on a dashboard or a tile, one level of replies, resolve/reopen,
+  edit (author), delete (author or manager). A note pinned to a point of a chart ("Add a note here" on a
+  mark) is drawn as a dashed line with its text on category charts.
+- **Column masking** (`query/masking.py`): hide completely (••••), show the last 4 characters (emails keep the
+  first letter and the domain) or replace with a short stable code. Applied in the query engine's `base` step
+  with `SELECT * REPLACE (…)` after row-level security chose the rows, so filters, groups, calculated fields,
+  previews, exports and the rows behind charts only see masked values. Admins and chosen groups see real
+  values. Joined and combined datasets inherit masks (the whole combined column is masked: fail closed).
+  Managed on the dataset's Security tab (owner or admin), audited.
+- **Data quality and freshness checks** (`services/checks.py`): freshness (since the last sync or the newest
+  date in a column), number of rows, empty values, repeats, range, allowed values. They run after every
+  successful sync, every 15 minutes (freshness), on demand and when saved; the owner gets an email when a check
+  starts failing; dashboards show "n data checks failing". Dataset → Quality tab.
+- **Notifications** (`services/notify.py`): email (HTML + attachments), Microsoft Teams (incoming webhook
+  "Workflows", adaptive card with an Open button) and WhatsApp (Business Cloud API, approved template with
+  title / message / link, number from a user attribute). Admin → Settings → Notifications; webhook
+  addresses and the token are encrypted and never returned; test button. Every message is logged
+  (`notification_log`) and shown as "recent messages".
+- **Subscriptions** (`services/delivery.py`): a dashboard on a schedule (every day, working days, weekly,
+  monthly, cron) as a PDF, PNG or link, with optional filters and message. **Each recipient gets their own
+  copy rendered as them** (their row-level security), plus a KPI summary; people who can no longer open the
+  dashboard are skipped; Teams channels get the link only. Anyone who can view subscribes themselves;
+  managers add people and groups and post to Teams. Send now.
+- **Alerts**: a chart's value crosses a limit, or a KPI is off track / at risk. Checked on a schedule and after
+  every sync of its datasets, **for each recipient with their own data**, sent once when it becomes true and
+  again only after it was back to normal; Teams messages are checked as the owner. Same permissions as
+  subscriptions. Celery beat: `lumen.dispatch_due_deliveries` (every minute), `lumen.freshness_checks` (15
+  minutes); `lumen.after_sync` runs checks and alerts after a sync.
+- **Signed embedding and display links** (`services/embed.py`, `docs/EMBEDDING.md`): embed keys (admins;
+  secret shown once; allowed dashboards) for tokens signed by another application (HS256, `kid`, at most 24
+  hours, an active user who can open the dashboard); display links for TV screens (run as a chosen non-admin
+  user; hash stored; expiry; revoke). Both become a short embed session sent in the `X-Lumen-Embed` header that
+  only the read endpoints of that one dashboard accept (`deps.dashboard_viewer`); revoking ends sessions at
+  once. Pages `/embed/:id#token=…` and `/display#…` (TV mode, session renewed). Caddy allows framing
+  `/embed/*` only by `EMBED_FRAME_ANCESTORS`; every other page `frame-ancestors 'self'`.
+- Arabic for every new screen (about 1,270 texts in total).
+- Tests: 362 backend tests on PostgreSQL (`test_governance.py`: versions keep 2 and roll back, permissions,
+  KPI status per viewer's rows, goal validation, comments and permissions, masking never reaches others in
+  queries / rows / calculated fields / exports, methods and exempt groups, inherited masks, data checks and
+  emails; `test_delivery.py`: channel settings hide secrets, per-recipient subscriptions rendered as each
+  person, skipped recipients, schedule, value and KPI alerts per recipient and once per change, WhatsApp and
+  Teams calls, permissions, display links and embed keys: read only, one dashboard, refused tokens, revoking).
+  Browser test: KPI chips and navigator, scorecard, comments, annotation line, subscription sent with a
+  rendered PDF, KPI alert happening, versions, data checks, masking editor, a display link and an embed token
+  opened with no sign-in (other API calls refused), Arabic.
+
+## Next: milestone 13 (AI + MCP)
+
+- Ask Data (English/Arabic), auto-dashboard, explain, forecasting, anomaly alerts, formula helper, AI daily
+  digest; cloud and self-hosted providers with routing for sensitive datasets.
+- Lumen MCP server (remote, OAuth per user, read-only, RLS, audited) so Claude can search datasets and
+  dashboards and run queries.
 
 ## Open questions for the owner
 
 - Self-hosted AI: is there (or will there be) a GPU server to run the local model?
 - Hosting: on-premise or UAE cloud region?
 - First Salesforce objects and Oracle schemas?
+- WhatsApp: which Meta business account and approved template name to use (the template needs three values:
+  title, message, link)?

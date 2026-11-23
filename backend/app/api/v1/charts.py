@@ -16,7 +16,7 @@ from app.models import Chart, Dataset, Role, User, Workspace
 from app.query import rls
 from app.query.spec import QuerySpec
 from app.schemas import ChartIn, ChartOut, MoveIn
-from app.services import audit, workspaces
+from app.services import audit, versions, workspaces
 from app.services.dashboards import chart_level, dashboards_using_chart
 
 router = APIRouter(prefix="/charts", tags=["charts"])
@@ -136,6 +136,7 @@ def update_chart(
 ):
     chart, level = _get(db, chart_id, user, "edit")
     query = _validate(db, body, user)
+    versions.keep_before_change(db, chart, user)
     chart.name, chart.description = body.name.strip(), body.description
     chart.dataset_id, chart.config, chart.query = body.dataset_id, body.config, query
     db.commit()
@@ -210,6 +211,7 @@ def delete_chart(
             f"This chart is on the dashboard{'s' if len(used) > 1 else ''} {names}. Remove it there first.",
         )
     name = chart.name
+    versions.forget(db, "chart", chart.id)
     db.delete(chart)
     audit.record(
         db,

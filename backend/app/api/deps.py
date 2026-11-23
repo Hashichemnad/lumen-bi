@@ -45,6 +45,21 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 
+def dashboard_viewer(dashboard_id: int, request: Request, db: Session = Depends(get_db)) -> User:
+    """The signed-in user, or the user of an embed session (display link or embed key) for this dashboard.
+    Embed sessions only ever reach the read endpoints of their own dashboard that use this dependency."""
+    from app.services import embed
+
+    try:
+        return current_user(request, db)
+    except HTTPException:
+        user = embed.viewer_from_header(db, request.headers.get(embed.HEADER), dashboard_id)
+        if user is None:
+            raise
+        request.state.embedded = True
+        return user
+
+
 def require_role(minimum: Role) -> Callable[..., User]:
     def checker(user: User = Depends(current_user)) -> User:
         if not user.has_role(minimum):

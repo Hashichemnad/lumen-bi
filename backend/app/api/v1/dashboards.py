@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, require_role
+from app.api.deps import current_user, dashboard_viewer, require_role
 from app.core.config import get_settings
 from app.db import get_db
 from app.models import (
@@ -44,7 +44,7 @@ from app.schemas import (
     ShareEntry,
 )
 from app.semantic import model
-from app.services import audit, excel, render, workspaces
+from app.services import audit, checks, excel, render, versions, workspaces
 from app.services import dashboards as svc
 
 router = APIRouter(prefix="/dashboards", tags=["dashboards"])
@@ -155,6 +155,7 @@ def _detail(db: Session, d: Dashboard, level: str, user: User) -> dict:
         "datasets": datasets,
         "can_edit": svc.can_edit(level),
         "can_manage": level == "manage",
+        "quality": checks.summary(db, [int(k) for k in datasets]),
     }
 
 
@@ -219,9 +220,15 @@ def create_dashboard(
 
 
 @router.get("/{dashboard_id}")
-def get_dashboard(dashboard_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def get_dashboard(
+    dashboard_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(dashboard_viewer)
+):
     d, level = _get(db, dashboard_id, user)
-    return _detail(db, d, level, user)
+    if getattr(request.state, "embedded", False):
+        level = "view"  # embedded: read only, whoever the user is
+    out = _detail(db, d, level, user)
+    out["embedded"] = getattr(request.state, "embedded", False)
+    return out
 
 
 @router.put("/{dashboard_id}")
@@ -236,9 +243,12 @@ def update_dashboard(
     if not svc.can_edit(level):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You can view this dashboard but not change it")
     try:
-        d.config = svc.validate_config(db, user, body.config, d.config)
+        new_config = svc.validate_config(db, user, body.config, d.config)
     except svc.DashboardError as exc:
         raise _bad(exc) from exc
+    if new_config != d.config or body.name.strip() != d.name or body.description != d.description:
+        versions.keep_before_change(db, d, user)
+    d.config = new_config
     d.name, d.description = body.name.strip(), body.description
     d.updated_at = datetime.now(UTC)
     audit.record(
@@ -321,6 +331,7 @@ def delete_dashboard(
             "Only the owner, an admin or a workspace manager can delete this dashboard",
         )
     name = d.name
+    versions.forget(db, "dashboard", d.id)
     db.delete(d)
     audit.record(
         db,
@@ -444,7 +455,7 @@ def query_tile(
     dashboard_id: int,
     body: DashboardQueryIn,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(dashboard_viewer),
 ):
     """Run one chart tile for the signed-in user (their row-level security applies)."""
     d, level = _get(db, dashboard_id, user)
@@ -537,7 +548,7 @@ def filter_values(
     search: str = "",
     limit: int = 500,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    user: User = Depends(dashboard_viewer),
 ):
     """Values for a filter control, from a dataset used on the dashboard (row-level security applies)."""
     d, _ = _get(db, dashboard_id, user)

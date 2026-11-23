@@ -4,7 +4,7 @@ import "react-resizable/css/styles.css";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
-  AlertTriangle, Check, Copy, Download, Filter, FolderInput, Link2, Monitor, MoreHorizontal, Pencil, Play, Plus, Settings2, Share2,
+  AlertTriangle, Bell, Check, Copy, Download, Gauge, History, Mail, MessageSquare, MonitorPlay, Filter, FolderInput, Link2, Monitor, MoreHorizontal, Pencil, Play, Plus, Settings2, Share2,
   Smartphone, Star, Trash2, Tv, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,7 +24,9 @@ import ViewDataModal from "../charts/ViewDataModal";
 import { AddTileModal, FilterModal, ShareModal, TileModal } from "./DashboardModals";
 import DashboardTile, { MARGIN, ROW_HEIGHT, tileHeight, type TileActions } from "./DashboardTile";
 import FilterBar from "./FilterBar";
+import { AlertsModal, CommentsPanel, DisplayLinksModal, Scorecard, STATUS_STYLE, SubscriptionsModal, VersionsModal } from "./Collab";
 import Stage, { groupsOf } from "./Stage";
+import type { CommentItem, KpiResult } from "../../lib/governance";
 
 type Spec = Record<string, unknown>;
 const PHONE_COLS = 4;
@@ -199,7 +201,8 @@ export default function DashboardPage() {
   const [cross, setCross] = useState<CrossFilter | null>(null);
   const [drills, setDrills] = useState<Record<string, Drill>>({});
   const [viewData, setViewData] = useState<{ tile: string; title: string; filters: Spec[] } | null>(null);
-  const [modal, setModal] = useState<null | { kind: "add" } | { kind: "tile"; tile: Tile } | { kind: "filter"; filter?: DashFilter } | { kind: "share" } | { kind: "move" }>(null);
+  const [modal, setModal] = useState<null | { kind: "add" } | { kind: "tile"; tile: Tile } | { kind: "filter"; filter?: DashFilter } | { kind: "share" } | { kind: "move" } | { kind: "scorecard" } | { kind: "subs" } | { kind: "alerts" } | { kind: "versions" } | { kind: "display" }>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const stage: "tv" | "present" | null = search.get("tv") === "1" ? "tv" : search.get("present") === "1" ? "present" : null;
   const openStage = (m: "tv" | "present" | null) => {
     const next = new URLSearchParams(search);
@@ -271,6 +274,33 @@ export default function DashboardPage() {
     return () => clearTimeout(t);
   }, [dash?.id, tab?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once the tab is drawn
 
+  // KPI goals (each viewer's own data, following the filters on screen) and comments
+  const goalTiles = (cfg?.tabs ?? []).flatMap((x) => x.items).filter((x) => x.kind === "section" && x.goal).map((x) => x.goal!.tile);
+  const kpiFilters = dash && cfg ? Object.fromEntries(goalTiles.map((tid) => {
+    const tile = cfg.tabs.flatMap((x) => x.items).find((x) => x.id === tid);
+    const chart = tile?.chart_id ? dash.charts[String(tile.chart_id)] : undefined;
+    const ds = chart ? dash.datasets[String(chart.dataset_id)] : undefined;
+    return [tid, ds ? cfg.filters.flatMap((f) => filterSpecs(f, filterValue(f), ds.id)) : []];
+  })) : {};
+  const kpis = useQuery({
+    queryKey: ["kpis", id, JSON.stringify(kpiFilters), JSON.stringify(goalTiles)],
+    queryFn: () => post<KpiResult[]>(`/dashboards/${id}/kpis`, { filters: kpiFilters }),
+    enabled: !!dash && goalTiles.length > 0,
+    placeholderData: (prev) => prev,
+  });
+  const embedded = !!dash?.embedded;
+  const comments = useQuery({
+    queryKey: ["comments", id],
+    queryFn: () => get<CommentItem[]>(`/dashboards/${id}/comments`),
+    enabled: !!dash && !embedded && !PRINT,
+  });
+  const kpiBySection = Object.fromEntries((kpis.data ?? []).map((k) => [k.section, k]));
+  const notesByTile: Record<string, { label: string; text: string }[]> = {};
+  for (const c of comments.data ?? []) {
+    if (c.anchor && c.tile_id && !c.resolved) (notesByTile[c.tile_id] ??= []).push({ label: c.anchor.label, text: c.body });
+  }
+  const openComments = (comments.data ?? []).filter((c) => !c.parent_id && !c.resolved).length;
+
   if (detail.error) return <div className="p-6"><Alert>{(detail.error as Error).message}</Alert></div>;
   if (!dash || !cfg || !tab) return <div className="p-6 text-sm text-slate-500">{tr("Loading…")}</div>;
 
@@ -290,6 +320,12 @@ export default function DashboardPage() {
   };
 
   const actions: TileActions = {
+    onNote: embedded ? undefined : async (tileId, label) => {
+      const text = prompt(tr("Note at {label}", { label }));
+      if (!text?.trim()) return;
+      await post(`/dashboards/${id}/comments`, { body: text.trim(), tile_id: tileId, anchor: { label } });
+      await qc.invalidateQueries({ queryKey: ["comments", id] });
+    },
     onCross: (tileId, label, filters) => setCross({ source: tileId, label, filters }),
     onDrill: (tileId, d) => setDrills((all) => {
       const next = { ...all };
@@ -368,10 +404,13 @@ export default function DashboardPage() {
   const synced = Object.values(dash.datasets).map((d) => d.last_synced_at).filter(Boolean) as string[];
   const refreshedAt = synced.length ? synced.sort().slice(-1)[0] : null;
   const failed = Object.values(dash.datasets).some((d) => d.last_status === "failed");
+  const quality = Object.values(dash.quality ?? {});
+  const failingChecks = quality.reduce((n, q) => n + q.failing, 0);
+  const checkMessages = quality.flatMap((q) => q.messages);
   const renderTile = (t: Tile, heightPx: number) => (
     <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
       drill={drills[t.id]} isCrossSource={cross?.source === t.id} actions={actions} editing={false} heightPx={heightPx}
-      canExport={hasRole("explorer")} />
+      canExport={hasRole("explorer")} kpi={kpiBySection[t.id]} annotations={notesByTile[t.id]} />
   );
   if (stage && !PRINT) {
     return <Stage dash={dash} cfg={cfg} mode={stage} render={renderTile} onExit={() => openStage(null)} refreshedAt={refreshedAt} />;
@@ -408,18 +447,18 @@ export default function DashboardPage() {
         {/* header */}
         <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <nav aria-label={tr("Breadcrumb")} className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+            {!embedded && <nav aria-label={tr("Breadcrumb")} className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
               <Link to="/workspaces" className="hover:text-slate-800">{dash.workspace_name || tr("Personal")}</Link>
               <span aria-hidden="true">/</span>
               <Link to="/dashboards" className="hover:text-slate-800">{tr("Dashboards")}</Link>
-            </nav>
+            </nav>}
             <div className="flex items-center gap-2">
               {editing ? (
                 <Input value={name} onChange={(e) => { setName(e.target.value); update((c) => c, 800); }} className="max-w-md py-1.5 text-lg font-semibold" aria-label={tr("Dashboard name")} />
               ) : (
                 <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">{dash.name}</h1>
               )}
-              {!editing && (
+              {!editing && !embedded && (
                 <button onClick={toggleFavorite} className="rounded p-1 text-slate-400 hover:text-amber-500" aria-label={dash.favorite ? tr("Remove from favourites") : tr("Add to favourites")}>
                   <Star size={18} className={dash.favorite ? "fill-amber-400 text-amber-500" : ""} />
                 </button>
@@ -435,10 +474,15 @@ export default function DashboardPage() {
               ) : refreshedAt ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700"><Check size={12} strokeWidth={3} /> {tr("Data refreshed {when}", { when: formatMoment(refreshedAt) })}</span>
               ) : null}
+              {!editing && failingChecks > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800" title={checkMessages.join("\n")}>
+                  <AlertTriangle size={12} /> {tr(failingChecks === 1 ? "1 data check failing" : "{n} data checks failing", { n: failingChecks })}
+                </span>
+              )}
               {!editing && dash.description && <span className="text-slate-500">{dash.description}</span>}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          {!embedded && <div className="flex flex-wrap items-center gap-2">
             {editing ? (
               <>
                 <div className="flex rounded-lg border border-slate-300 bg-white p-0.5">
@@ -452,6 +496,10 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
+                {(kpis.data?.length ?? 0) > 0 && <Button variant="secondary" onClick={() => setModal({ kind: "scorecard" })}><Gauge size={15} /> {tr("Scorecard")}</Button>}
+                <Button variant="secondary" onClick={() => setCommentsOpen(true)} aria-label={tr("Comments")}>
+                  <MessageSquare size={15} />{openComments > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{openComments}</span>}
+                </Button>
                 <Button variant="secondary" onClick={() => openStage("present")}><Play size={15} /> {tr("Present")}</Button>
                 <Button variant="secondary" onClick={() => openStage("tv")}><Tv size={15} /> {tr("TV mode")}</Button>
                 <ExportMenu busy={exporting} onExport={exportAs} />
@@ -464,6 +512,10 @@ export default function DashboardPage() {
                       <div role="menu" className="absolute end-0 z-40 mt-1 w-56 rounded-lg border border-slate-200 bg-white py-1 text-sm shadow-xl">
                         <button role="menuitem" onClick={() => { copyLink(); setMore(false); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Link2 size={14} /> {copied ? tr("Copied") : tr("Copy link")}</button>
                         {hasRole("explorer") && <button role="menuitem" onClick={() => { setMore(false); copyDashboard(); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Copy size={14} /> {tr("Make a copy")}</button>}
+                        <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "subs" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Mail size={14} /> {tr("Subscribe")}</button>
+                        <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "alerts" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><Bell size={14} /> {tr("Alerts")}</button>
+                        {dash.can_edit && <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "versions" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><History size={14} /> {tr("Earlier versions")}</button>}
+                        {hasRole("admin") && <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "display" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><MonitorPlay size={14} /> {tr("Display links")}</button>}
                         {dash.can_manage && <button role="menuitem" onClick={() => { setMore(false); setModal({ kind: "move" }); }} className="flex w-full items-center gap-2 px-3 py-2 text-start hover:bg-slate-100"><FolderInput size={14} /> {tr("Move to a workspace")}</button>}
                         {dash.can_manage && <button role="menuitem" onClick={() => { setMore(false); remove(); }} className="flex w-full items-center gap-2 px-3 py-2 text-start text-red-700 hover:bg-red-50"><Trash2 size={14} /> {tr("Delete")}</button>}
                       </div>
@@ -473,7 +525,7 @@ export default function DashboardPage() {
                 {dash.can_edit && <Button onClick={() => setEditing(true)}><Pencil size={15} /> {tr("Edit")}</Button>}
               </>
             )}
-          </div>
+          </div>}
         </header>
         {exportError && <div className="mb-3"><Alert>{exportError}</Alert></div>}
 
@@ -505,7 +557,7 @@ export default function DashboardPage() {
           onRemoveFilter={(f) => update((c) => ({ ...c, filters: c.filters.filter((x) => x.id !== f.id) }), 0)} />
 
         {sectionTiles.length > 0 && showDevice === "phone" && !editing && (
-          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone />
+          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone kpis={kpiBySection} />
         )}
         <div className="flex gap-6">
         <div className="min-w-0 flex-1">
@@ -526,20 +578,30 @@ export default function DashboardPage() {
             render={(t, heightPx) => (
               <DashboardTile dash={dash} tile={t} dataset={datasetOf(t)} filters={filtersFor(t)} params={paramsFor(t)}
                 drill={drills[t.id]} isCrossSource={cross?.source === t.id} actions={actions} editing={editing} heightPx={heightPx}
-                canExport={hasRole("explorer")} />
+                canExport={hasRole("explorer")} kpi={kpiBySection[t.id]} annotations={notesByTile[t.id]} />
             )} />
         )}
         </div>
         {sectionTiles.length > 0 && showDevice === "desktop" && (
-          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone={false} />
+          <SectionNav sections={sectionTiles} active={activeSection ?? sectionTiles[0].id} onGo={goToSection} phone={false} kpis={kpiBySection} />
         )}
         </div>
         {editing && device === "phone" && <p className="mt-3 text-center text-xs text-slate-500">{tr("Arrange tiles for phones. Until you change it, phones show the tiles stacked in reading order.")}</p>}
       </div>
 
       {modal?.kind === "add" && <AddTileModal onAdd={addTile} onClose={() => setModal(null)} />}
+      {modal?.kind === "scorecard" && <Scorecard kpis={kpis.data ?? []} onGo={(sid) => goToSection(sid)} onClose={() => setModal(null)} />}
+      {modal?.kind === "subs" && <SubscriptionsModal dash={dash} state={search.get("s")} onClose={() => setModal(null)} />}
+      {modal?.kind === "alerts" && <AlertsModal dash={dash} tiles={cfg.tabs.flatMap((x) => x.items)} kpis={kpis.data ?? []} onClose={() => setModal(null)} />}
+      {modal?.kind === "versions" && (
+        <VersionsModal kind="dashboards" id={id} onClose={() => setModal(null)}
+          onRestored={async () => { setConfig(null); await qc.invalidateQueries({ queryKey: ["dashboard", id] }); }} />
+      )}
+      {modal?.kind === "display" && <DisplayLinksModal dash={dash} onClose={() => setModal(null)} />}
+      {commentsOpen && <CommentsPanel dash={dash} tiles={cfg.tabs.flatMap((x) => x.items)} onClose={() => setCommentsOpen(false)} />}
       {modal?.kind === "tile" && (
         <TileModal tile={modal.tile} onClose={() => setModal(null)}
+          charts={cfg.tabs.flatMap((x) => x.items).filter((x) => x.kind === "chart").map((x) => ({ id: x.id, name: x.title || (x.chart_id ? dash.charts[String(x.chart_id)]?.name : "") || tr("Chart") }))}
           onSave={(nt) => update((c) => ({ ...c, tabs: c.tabs.map((t) => ({ ...t, items: t.items.map((i) => (i.id === nt.id ? nt : i)) })) }), 0)} />
       )}
       {modal?.kind === "filter" && <FilterModal dash={{ ...dash, config: cfg }} existing={modal.filter} onSave={saveFilter} onClose={() => setModal(null)} />}
@@ -557,7 +619,7 @@ export default function DashboardPage() {
 }
 
 /** Sections of the current tab, in reading order, with the one in view highlighted. */
-function SectionNav({ sections, active, onGo, phone }: { sections: Tile[]; active: string | null; onGo: (id: string) => void; phone: boolean }) {
+function SectionNav({ sections, active, onGo, phone, kpis }: { sections: Tile[]; active: string | null; onGo: (id: string) => void; phone: boolean; kpis: Record<string, KpiResult> }) {
   if (phone) {
     return (
       <div className="sticky top-0 z-20 -mx-4 mb-3 bg-slate-50/95 px-4 py-2 backdrop-blur">
@@ -577,10 +639,11 @@ function SectionNav({ sections, active, onGo, phone }: { sections: Tile[]; activ
             <button onClick={() => onGo(t.id)} aria-current={active === t.id ? "true" : undefined}
               className={clsx("flex min-h-11 w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm transition-colors",
                 active === t.id ? "bg-brand-50 text-slate-900" : "text-slate-700 hover:bg-slate-100")}>
-              <span aria-hidden="true" className={clsx("mt-1.5 size-2 shrink-0 rounded-full", active === t.id ? "bg-brand-600" : "bg-slate-300")} />
+              <span aria-hidden="true" className={clsx("mt-1.5 size-2 shrink-0 rounded-full", kpis[t.id] ? STATUS_STYLE[kpis[t.id].status].dot : active === t.id ? "bg-brand-600" : "bg-slate-300")} />
               <span className="min-w-0">
                 {t.code && <span className="block text-[11px] font-bold tracking-wide text-slate-500">{t.code}</span>}
                 <span className={clsx("line-clamp-2 leading-snug", active === t.id && "font-semibold")}>{t.title || tr("Section")}</span>
+                {kpis[t.id] && <span className="sr-only"> · {tr(({ on_track: "On track", at_risk: "At risk", off_track: "Off track", no_data: "No data" } as const)[kpis[t.id].status])}</span>}
               </span>
             </button>
           </li>

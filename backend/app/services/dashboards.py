@@ -131,6 +131,20 @@ def validate_config(db: Session, user: User, config: dict, previous: dict | None
                 # A section header (e.g. one KPI): code such as "KPI-07", name in title, description in text
                 clean["code"] = str(item.get("code") or "")[:50]
                 clean["text"] = str(item.get("text") or "")[:2_000]
+                goal = item.get("goal")
+                if goal:
+                    # A KPI goal: the chart tile whose value is the actual, the target and which way is better
+                    try:
+                        target = float(goal["target"])
+                        warn = min(100.0, max(0.0, float(goal.get("warn", 5))))
+                    except (KeyError, TypeError, ValueError) as exc:
+                        raise DashboardError("A KPI goal needs a number as its target") from exc
+                    clean["goal"] = {
+                        "tile": str(goal.get("tile") or ""),
+                        "target": target,
+                        "direction": "lower" if goal.get("direction") == "lower" else "higher",
+                        "warn": warn,
+                    }
             else:
                 url = str(item.get("url") or "").strip()
                 if url and not URL_RE.match(url):
@@ -141,6 +155,14 @@ def validate_config(db: Session, user: User, config: dict, previous: dict | None
                     clean["fit"] = "cover" if item.get("fit") == "cover" else "contain"
             out_items.append(clean)
         out_tabs.append({"id": tid, "name": str(tab.get("name") or "Tab")[:100], "items": out_items})
+
+    chart_tiles = {i["id"] for t in out_tabs for i in t["items"] if i["kind"] == "chart"}
+    for t in out_tabs:
+        for i in t["items"]:
+            if "goal" in i and i["goal"]["tile"] not in chart_tiles:
+                raise DashboardError(
+                    f'The KPI goal of "{i["title"] or i["code"]}" needs one of the charts on this dashboard'
+                )
 
     filters = config.get("filters") or []
     if not isinstance(filters, list) or len(filters) > 30:

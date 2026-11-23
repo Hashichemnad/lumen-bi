@@ -7,6 +7,7 @@ import { put } from "../../lib/api";
 import { formatDay, hijriDay } from "../../lib/dates";
 import { t } from "../../lib/i18n";
 import { usePrefs, type RegionalSettings } from "../../lib/prefs";
+import { EmbedKeysCard, NotificationsCard } from "./Integrations";
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 export const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -92,6 +93,8 @@ export default function AdminSettings() {
             {t("Today")}: {formatDay(today, { dateStyle: "full" })}{s.calendar === "gregorian" ? ` · ${hijriDay(today, { dateStyle: "long" })}` : ""}
           </p>
         </Card>
+        <NotificationsCard />
+        <EmbedKeysCard />
       </div>
     </>
   );

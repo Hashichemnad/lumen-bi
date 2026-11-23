@@ -88,7 +88,7 @@ export function AddTileModal({ onAdd, onClose }: { onAdd: (tile: Omit<Tile, "des
 }
 
 // ------------------------------------------------------------------ tile settings
-export function TileModal({ tile, onSave, onClose }: { tile: Tile; onSave: (t: Tile) => void; onClose: () => void }) {
+export function TileModal({ tile, onSave, onClose, charts = [] }: { tile: Tile; onSave: (t: Tile) => void; onClose: () => void; charts?: { id: string; name: string }[] }) {
   const [t, setT] = useState(tile);
   const set = (c: Partial<Tile>) => setT({ ...t, ...c });
   const urlOk = !t.url || /^https:\/\/\S+$/i.test(t.url);
@@ -105,6 +105,36 @@ export function TileModal({ tile, onSave, onClose }: { tile: Tile; onSave: (t: T
             <FormField label={tr("Name")}><Input value={t.title ?? ""} onChange={(e) => set({ title: e.target.value })} /></FormField>
           </div>
           <FormField label={tr("Description")}><Input value={t.text ?? ""} onChange={(e) => set({ text: e.target.value })} /></FormField>
+          <fieldset className="space-y-3 rounded-lg border border-slate-200 p-3">
+            <legend className="px-1 text-sm font-semibold text-slate-700">{tr("KPI goal (optional)")}</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={!!t.goal} disabled={!charts.length}
+                onChange={(e) => set({ goal: e.target.checked ? { tile: charts[0]?.id ?? "", target: 0, direction: "higher", warn: 5 } : null })} />
+              {tr("Show actual against a target, with a status")}
+            </label>
+            {!charts.length && <p className="text-xs text-slate-500">{tr("Add a chart to this dashboard first: its value is the actual.")}</p>}
+            {t.goal && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FormField label={tr("Actual comes from")} hint={tr("The chart's first measure (its grand total when it has dimensions).")}>
+                  <Select value={t.goal.tile} onChange={(e) => set({ goal: { ...t.goal!, tile: e.target.value } })}>
+                    {charts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </FormField>
+                <FormField label={tr("Target")}>
+                  <Input type="number" value={t.goal.target} onChange={(e) => set({ goal: { ...t.goal!, target: Number(e.target.value) } })} />
+                </FormField>
+                <FormField label={tr("Better when")}>
+                  <Select value={t.goal.direction} onChange={(e) => set({ goal: { ...t.goal!, direction: e.target.value as "higher" | "lower" } })}>
+                    <option value="higher">{tr("Higher (e.g. tickets on time)")}</option>
+                    <option value="lower">{tr("Lower (e.g. response time)")}</option>
+                  </Select>
+                </FormField>
+                <FormField label={tr("At risk within (% of target)")} hint={tr("Missing the target by up to this much is At risk; more is Off track.")}>
+                  <Input type="number" min={0} max={100} value={t.goal.warn} onChange={(e) => set({ goal: { ...t.goal!, warn: Number(e.target.value) } })} />
+                </FormField>
+              </div>
+            )}
+          </fieldset>
         </>
       )}
       {t.kind !== "text" && t.kind !== "section" && (

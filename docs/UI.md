@@ -69,5 +69,18 @@ https://lumen.example.ae/dashboards/12?tv=1&cycle=30&refresh=5
 - `cycle`: seconds per slide (at least 10, default 30)
 - `refresh`: minutes between data refreshes (default 5)
 
-Sign the screen in with a user that has the Viewer role and access to the dashboard. Screens without a
-sign-in come with signed embedding (milestone 12).
+Without signing the screen in, an admin can make a **display link** (More → Display links); see
+`docs/EMBEDDING.md`.
+
+## KPI goals, comments, subscriptions and alerts
+
+- **KPI goal**: edit a section (Edit → section settings → KPI goal): the chart whose value is the actual, the
+  target, whether higher or lower is better and how far off still counts as "at risk". The section header,
+  the navigator and the **Scorecard** show the status, each person with their own data.
+- **Comments**: the speech-bubble button. To pin a note to a point of a chart, click the point → *Add a note
+  here*.
+- **Subscribe** (More → Subscribe): get the dashboard by email (PDF, picture or link) on a schedule. Managers
+  can add people and groups and post to Teams; everyone gets their own data.
+- **Alerts** (More → Alerts): a message when a chart's value crosses a limit or a KPI goes off track.
+- **Earlier versions** (More): the last two versions; Restore goes back (and keeps the current one).
+- **Data checks** (Data → dataset → Quality) and **masking** (Security tab) are for dataset owners.

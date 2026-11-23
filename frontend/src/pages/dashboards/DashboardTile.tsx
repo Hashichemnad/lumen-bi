@@ -4,7 +4,9 @@ import { ChevronLeft, Download, Eye, GripVertical, Image as ImageIcon, MoreVerti
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import ChartView, { type ChartViewHandle } from "../../components/chart/ChartView";
+import ChartView, { type Annotation, type ChartViewHandle } from "../../components/chart/ChartView";
+import type { KpiResult } from "../../lib/governance";
+import { KpiLine } from "./Collab";
 import type { MarkEvent } from "../../components/chart/EChart";
 import Markdown from "../../components/Markdown";
 import { Alert } from "../../components/ui";
@@ -26,6 +28,8 @@ export const tileHeight = (h: number) => h * ROW_HEIGHT + (h - 1) * MARGIN;
 type Spec = Record<string, unknown>;
 
 export interface TileActions {
+  /** Pin a note to a point of a chart (an annotation); missing when comments are not available */
+  onNote?: (tileId: string, label: string) => void;
   onCross: (tileId: string, label: string, filters: Spec[]) => void;
   onDrill: (tileId: string, drill: Drill | null) => void;
   onViewData: (tileId: string, title: string, filters: Spec[]) => void;
@@ -33,7 +37,8 @@ export interface TileActions {
   onRemove: (tile: Tile) => void;
 }
 
-function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource, actions, height, canExport }: {
+function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource, actions, height, canExport, annotations }: {
+  annotations?: Annotation[];
   dash: Dashboard;
   tile: Tile;
   dataset?: DashDataset;
@@ -123,7 +128,7 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
           <p className="p-3 text-sm text-red-700">{(data.error as Error).message}</p>
         ) : data.data ? (
           <ChartView ref={view} cfg={cfg} type={type} result={data.data} identity={identityList} height={Math.max(80, height)}
-            stale={data.isFetching} onMark={(e) => setMark(e)} />
+            stale={data.isFetching} onMark={(e) => setMark(e)} annotations={annotations} />
         ) : (
           <div data-state="loading" className="flex h-full items-center justify-center text-sm text-slate-400">{t("Loading…")}</div>
         )}
@@ -137,14 +142,17 @@ function ChartTile({ dash, tile, dataset, filters, params, drill, isCrossSource,
           )}
           {next && <MenuItem onClick={drillDown}>{t("Drill down to {label}", { label: next.label })}</MenuItem>}
           {(dash.config.options.view_data || dash.can_edit) && markInfo && (
-            <MenuItem onClick={() => { actions.onViewData(tile.id, `Data for ${markInfo.label}`, [...body.filters, ...markInfo.specs]); setMark(null); }}>{t("View data")}</MenuItem>
+            <MenuItem onClick={() => { actions.onViewData(tile.id, t("Data for {label}", { label: markInfo.label }), [...body.filters, ...markInfo.specs]); setMark(null); }}>{t("View data")}</MenuItem>
+          )}
+          {actions.onNote && firstDimIndex >= 0 && (
+            <MenuItem onClick={() => { actions.onNote!(tile.id, formatValue(row[firstDimIndex], data.data!.columns[firstDimIndex])); setMark(null); }}>{t("Add a note here")}</MenuItem>
           )}
         </Menu>
       )}
       {menu && (
         <Menu anchor={menu} onClose={() => setMenu(null)}>
           {(dash.config.options.view_data || dash.can_edit) && (
-            <MenuItem onClick={() => { actions.onViewData(tile.id, `Data behind ${title}`, body.filters); setMenu(null); }}><Eye size={14} /> {t("View data")}</MenuItem>
+            <MenuItem onClick={() => { actions.onViewData(tile.id, t("Data behind {title}", { title }), body.filters); setMenu(null); }}><Eye size={14} /> {t("View data")}</MenuItem>
           )}
           {canExport && <MenuItem onClick={() => exportCsv(false)}><Download size={14} /> {t("Export as CSV")}</MenuItem>}
           {canExport && <MenuItem onClick={() => exportCsv(false, "xlsx")}><Download size={14} /> {t("Export as Excel")}</MenuItem>}
@@ -172,8 +180,10 @@ export default function DashboardTile(props: {
   editing: boolean;
   heightPx: number;
   canExport: boolean;
+  kpi?: KpiResult;
+  annotations?: Annotation[];
 }) {
-  const { tile, editing, actions, heightPx } = props;
+  const { tile, editing, actions, heightPx, kpi } = props;
   const chartHeight = heightPx - 44;
   return (
     <div data-tile={tile.id} data-section={tile.kind === "section" ? tile.id : undefined}
@@ -189,10 +199,11 @@ export default function DashboardTile(props: {
       {tile.kind === "section" && (
         <div className="tile-handle flex h-full items-center gap-4 px-5">
           {tile.code && <span className="section-code shrink-0 rounded-lg bg-brand-50 px-2.5 py-1 font-display text-xs font-bold tracking-wider text-brand-700">{tile.code}</span>}
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-bold text-slate-900">{tile.title || t("Section")}</h2>
             {tile.text && <p className="truncate text-sm text-slate-500">{tile.text}</p>}
           </div>
+          {kpi && <div className="no-drag ms-auto shrink-0"><KpiLine k={kpi} /></div>}
         </div>
       )}
       {tile.kind === "text" && (

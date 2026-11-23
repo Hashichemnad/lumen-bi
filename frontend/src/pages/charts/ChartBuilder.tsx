@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import { ArrowLeftRight, Copy, Download, Eraser, Eye, Filter, Image, Redo2, Save, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, Copy, Download, Eraser, Eye, Filter, History, Image, Redo2, Save, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -23,6 +23,7 @@ import { drillDown, drillUp, fieldMap, fieldToPill, autoShelf, filterSummary, fi
 import { Menu, MenuItem, MenuLine, Shelf, type DragPayload, type PillActions } from "./Shelf";
 import { OptionsPanel, ShowMe } from "./SidePanel";
 import ViewDataModal from "./ViewDataModal";
+import { VersionsModal } from "../dashboards/Collab";
 import { t } from "../../lib/i18n";
 
 const SINGLE: ShelfName[] = ["color", "size"];
@@ -52,6 +53,7 @@ export default function ChartBuilder() {
   const { hasRole } = useAuth();
   const { target } = useWorkspace();
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const isNew = id === "new";
 
   const saved = useQuery({ queryKey: ["chart", id], queryFn: () => get<SavedChart>(`/charts/${id}`), enabled: !isNew });
@@ -341,6 +343,7 @@ export default function ChartBuilder() {
                 {!["table", "kpi", "rating"].includes(type) && <MenuItem onClick={() => { setExportMenu(null); exportPng(); }}><Image size={14} /> {t("PNG")}</MenuItem>}
               </Menu>
             )}
+            {!isNew && saved.data?.can_edit && <Button size="sm" variant="secondary" onClick={() => setHistoryOpen(true)} aria-label={t("Earlier versions")} title={t("Earlier versions")}><History size={14} /></Button>}
             {!isNew && <Button size="sm" variant="secondary" onClick={() => save(true)} disabled={saving}><Copy size={14} /> {t("Save copy")}</Button>}
             <Button size="sm" onClick={() => save()} disabled={saving || (!dirty && !isNew)}><Save size={14} /> {saving ? t("Saving…") : t("Save")}</Button>
           </div>
@@ -393,6 +396,10 @@ export default function ChartBuilder() {
       )}
       {filterEdit && (
         <FilterModal catalog={catalog.data} field={filterEdit.field} existing={filterEdit.existing} onSave={saveFilter} onClose={() => setFilterEdit(null)} />
+      )}
+      {historyOpen && !isNew && (
+        <VersionsModal kind="charts" id={Number(id)} onClose={() => setHistoryOpen(false)}
+          onRestored={async () => { loaded.current = null; await qc.invalidateQueries({ queryKey: ["chart", id] }); }} />
       )}
       {viewData && (
         <ViewDataModal datasetId={datasetId!} spec={viewData.spec} title={viewData.title} onClose={() => setViewData(null)} canExport={hasRole("explorer")} />
