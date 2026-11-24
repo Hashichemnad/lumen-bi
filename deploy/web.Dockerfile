@@ -2,7 +2,13 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+# Slow or unreliable networks (and company proxies, passed in by Docker as HTTP_PROXY / HTTPS_PROXY):
+# retry downloads instead of failing on the first time-out
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm config set fetch-timeout 600000 \
+    && npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 

@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Install dependencies first so this layer is cached when only code changes
 COPY pyproject.toml ./
-RUN mkdir app && touch app/__init__.py && pip install . && rm -rf app
+RUN mkdir app && touch app/__init__.py && pip install --retries 10 --timeout 120 . && rm -rf app
 
 # Headless Chromium for PDF/PNG exports of dashboards (shared by API and worker)
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
